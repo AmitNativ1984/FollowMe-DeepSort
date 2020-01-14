@@ -1,0 +1,9 @@
+numpy
+scipy
+pillow
+torch
+torchvision
+opencv-python
+sklearn
+vizer
+edict
