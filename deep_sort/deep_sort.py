@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 
 from .deep.feature_extractor import Extractor
 from .sort.nn_matching import NearestNeighborDistanceMetric
@@ -19,9 +18,9 @@ class DeepSort(object):
         self.extractor = Extractor(model_path, use_cuda=use_cuda)
 
         max_cosine_distance = max_dist
-        nn_budget = 100
+        # nn_budget = 100
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        self.tracker = Tracker(metric, max_iou_distance=0.7, max_age=70, n_init=3)
+        self.tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
 
     def update(self, bbox_xywh, confidences, ori_img):
         self.height, self.width = ori_img.shape[:2]
@@ -49,9 +48,10 @@ class DeepSort(object):
             x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
             track_id = track.track_id
             outputs.append(np.array([x1,y1,x2,y2,track_id], dtype=np.int))
+
         if len(outputs) > 0:
             outputs = np.stack(outputs,axis=0)
-        return outputs
+        return outputs, detections
 
 
     """
