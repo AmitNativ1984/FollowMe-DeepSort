@@ -3,5 +3,6 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/deep_sort_pytorch" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/detector/yolov3" vcs="Git" />
   </component>
 </project>
