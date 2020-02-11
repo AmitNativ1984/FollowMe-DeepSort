@@ -131,12 +131,12 @@ def demo():
     import os
     from vizer.draw import draw_boxes
 
-    yolo = YOLOv3("cfg/yolo_v3.cfg","weight/yolov3.weights","cfg/coco.names")
+    yolo = YOLOv3("cfg/yolov3_probot.cfg", "weight/yolov3_ultralytics.pt", "cfg/kitti_probot.names")
     print("yolo.size =",yolo.size)
-    root = "./demo"
+    root = "/home/amit/Data/Vehicle_Recordings/Ben_Shemen/14-01-2020/day/drive3-day/images"
     resdir = os.path.join(root, "results")
     os.makedirs(resdir, exist_ok=True)
-    files = [os.path.join(root,file) for file in os.listdir(root) if file.endswith('.jpg')]
+    files = [os.path.join(root,file) for file in os.listdir(root) if file.endswith('.jpg') | file.endswith('.bmp') ]
     files.sort()
     for filename in files:
         img = cv2.imread(filename)
