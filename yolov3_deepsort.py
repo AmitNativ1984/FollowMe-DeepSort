@@ -26,7 +26,7 @@ class Tracker(object):
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
         self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, use_cuda=use_cuda)
+        self.detector = build_detector(cfg, use_cuda=use_cuda, implementation='new')
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
@@ -83,7 +83,7 @@ class Tracker(object):
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
-                # confs = [detections[i].confidence for i in range(np.shape(detections)[0])]
+                confs = [detections[i].confidence for i in range(np.shape(detections)[0])]
                 # ori_im = draw_boxes(ori_im, DetectionsBBOXES, confs=confs)
 
             if len(outputs) > 0:
@@ -120,10 +120,10 @@ class Tracker(object):
             cls_conf = cls_conf[mask]
 
             # do tracking
-            outputs, detections = self.deepsort.update(bbox_xywh, cls_conf, im)
-            for target in outputs:
+            outputs, detections, detections_conf = self.deepsort.update(bbox_xywh, cls_conf, im)
+            for i, target in enumerate(outputs):
                 id = target[-1]
-                print('\t\t target [{}] \t ({},{},{},{})'.format(id, target[0], target[1], target[2], target[3]))
+                print('\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}'.format(id, target[0], target[1], target[2], target[3], detections_conf[i]))
         return outputs, detections
 
 def parse_args():

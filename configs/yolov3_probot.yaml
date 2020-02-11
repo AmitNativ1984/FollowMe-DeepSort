@@ -1,7 +1,7 @@
 YOLOV3:
-  CFG: "./detector/YOLOv3/cfg/yolov3_probot.cfg"
-  WEIGHT: "./detector/YOLOv3/weight/best.pt"
-  CLASS_NAMES: "./detector/YOLOv3/cfg/kitti_probot.names"
+  CFG: "./detector/yolov3/cfg/yolov3.cfg"
+  WEIGHT: "./detector/yolov3/weights/yolov3.pt"
+  CLASS_NAMES: "./detector/yolov3/data/coco.names"
 
-  SCORE_THRESH: 0.9
+  SCORE_THRESH: 0.7
   NMS_THRESH: 0.5
