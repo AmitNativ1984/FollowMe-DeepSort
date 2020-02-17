@@ -35,8 +35,8 @@ def build_detector(cfg, use_cuda, implementation='org'):
 
         opt = parser.parse_args('')
 
-        yolov3 = yolov3_ultralytics(opt=opt)
-        # yolov3 = detect(opt=opt)
-        return yolov3
+        return yolov3_ultralytics(opt=opt)
+
+
 
 

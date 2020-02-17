@@ -72,6 +72,8 @@ class Tracker(object):
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
+            ori_im = np.concatenate((ori_im, ori_im, ori_im, ori_im), 1)
+            ori_im = ori_im[:416, :]
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             print('frame: {}'.format(frame))
