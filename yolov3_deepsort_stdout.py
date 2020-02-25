@@ -117,7 +117,7 @@ class Tracker(object):
             cls_conf = cls_conf[mask]
 
             # do tracking
-            outputs, detections = self.deepsort.update(bbox_xywh, cls_conf, im)
+            outputs, detections, detections_conf = self.deepsort.update(bbox_xywh, cls_conf, im)
         return im, outputs, detections, err_flag
 
 

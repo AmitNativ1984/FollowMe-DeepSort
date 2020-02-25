@@ -1,0 +1,7 @@
+YOLOV3:
+  CFG: "./detector/yolov3/cfg/kzir_yolov3.cfg"
+  WEIGHT: "./detector/yolov3/weights/kzir/yolov3/best.pt"
+  CLASS_NAMES: "./detector/yolov3/data/kzir.names"
+
+  SCORE_THRESH: 0.2
+  NMS_THRESH: 0.5
