@@ -242,8 +242,8 @@ class Tracker(object):
 def parse_args():
     parser = argparse.ArgumentParser()
    # parser.add_argument("VIDEO_PATH", type=str)
-    parser.add_argument("--config_detection", type=str, default="C:\Temp\FollowMe\Tracking\pyfollowme\DeepSort\configs\yolov3.yaml")
-    parser.add_argument("--config_deepsort", type=str, default="C:\Temp\FollowMe\Tracking\pyfollowme\DeepSort\configs\deep_sort.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov3.yaml")
+    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=False)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
