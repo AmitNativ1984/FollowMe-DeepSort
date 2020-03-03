@@ -1,6 +1,6 @@
 from .YOLOv3 import YOLOv3
-# from .yolov3.infer_img import YOLOv3 as yolov3_ultralytics
-# from .yolov3.detect import detect
+from .yolov3.infer_img import YOLOv3 as yolov3_ultralytics
+from .yolov3.detect import detect
 from utils.parser import get_config
 from .YOLOv3.cfg import parse_cfg
 import argparse

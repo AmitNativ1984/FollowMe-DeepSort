@@ -30,7 +30,7 @@ class Tracker(object):
                                    self.args.thetaX, self.args.thetaY)
 
         self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, use_cuda=use_cuda, implementation='org')
+        self.detector = build_detector(cfg, use_cuda=use_cuda, implementation='new')
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
