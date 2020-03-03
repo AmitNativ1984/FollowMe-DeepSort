@@ -186,11 +186,11 @@ class Tracker(object):
                                                                y2=target[3],
                                                                obj_height_meters=self.args.target_height))
 
-            for i, target in enumerate(outputs):
-                id = target[-1]
-                print('\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]'
-                      .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
-                              target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]))
+        #   for i, target in enumerate(outputs):
+        #       id = target[-1]
+        #       print('\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]'
+        #             .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
+        #                     target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]))
         #end = time.time()
         #print("2: {}".format(end - start))
         #sys.stdout.flush()
