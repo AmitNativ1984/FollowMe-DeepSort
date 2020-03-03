@@ -19,7 +19,7 @@ def compute_color_for_labels(label, target_id):
     return tuple(color)
 
 
-def draw_boxes(img, bbox, identities=None, offset=(0,0),confs=None, target_id=None):
+def draw_boxes(img, bbox, identities=None, offset=(0,0), confs=None, target_id=None, target_xyz=None):
     for i,box in enumerate(bbox):
         x1,y1,x2,y2 = [int(i) for i in box]
         x1 += offset[0]
@@ -39,7 +39,11 @@ def draw_boxes(img, bbox, identities=None, offset=(0,0),confs=None, target_id=No
         cv2.rectangle(img,(x1, y1),(x1+t_size[0]+3,y1+t_size[1]+4), color,-1)
         cv2.putText(img,label,(x1,y1+t_size[1]+4), cv2.FONT_HERSHEY_PLAIN, 2, [255,255,255], 2)
         if confs:
-            cv2.putText(img, '{}{:.3f}'.format("", confs[i]), (x1, y1 + t_size[1] - t_size[1]*2), cv2.FONT_HERSHEY_PLAIN, 2, [0,255,0], 2)
+            t_size = cv2.getTextSize('{}({:.2f}, {:.2f}, {:.2f})[m]'.format(" ", target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]), cv2.FONT_HERSHEY_PLAIN, 2, 2)[0]
+            cv2.rectangle(img, (x1, y2), (x1 + t_size[0] + 3,  y2 + t_size[1] * 5), color, -1)
+            cv2.putText(img, '{}{:.3f}'.format("conf:", confs[i]), (x1, y2 + 2 * t_size[1]), cv2.FONT_HERSHEY_PLAIN, 2, [255,255,255], 2)
+            cv2.putText(img, '{}({:.2f}, {:.2f}, {:.2f})[m]'.format(" ", target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]),
+                        (x1, y2 + 4 * t_size[1]), cv2.FONT_HERSHEY_PLAIN, 2, [255, 255, 255], 2)
     return img
 
 

@@ -10,6 +10,7 @@ from detector import build_detector
 from deep_sort import build_tracker
 from utils.draw import draw_boxes
 from utils.parser import get_config
+from utils.camera2world import Cam2World
 
 
 class Tracker(object):
@@ -23,7 +24,9 @@ class Tracker(object):
         if args.display:
             cv2.namedWindow("test", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("test", args.display_width, args.display_height)
-
+   
+        self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
+                                   self.args.thetaX, self.args.thetaY)
         self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
@@ -73,11 +76,13 @@ class Tracker(object):
             print(err_flag)
             return [], [], [], err_flag
 
-        # im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-        # do detection
+               # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)
         outputs = []
         detections = []
+        detections_conf = []
+        target_xyz = []
+
         if bbox_xywh is not None:
             # select person class
             for cls in target_cls:
@@ -91,9 +96,24 @@ class Tracker(object):
             cls_conf = cls_conf[mask]
 
             # do tracking
-            outputs, detections = self.deepsort.update(bbox_xywh, cls_conf, im)
-        return im, outputs, detections, err_flag
+            outputs, detections, detections_conf = self.deepsort.update(bbox_xywh, cls_conf, im)
 
+            # calculate object distance and direction from camera
+            target_xyz = []
+            for i, target in enumerate(outputs):
+                target_xyz.append(self.cam2world.obj_world_xyz(x1=target[0],
+                                                               y1=target[1],
+                                                               x2=target[2],
+                                                               y2=target[3],
+                                                               obj_height_meters=self.args.target_height))
+
+            for i, target in enumerate(outputs):
+                id = target[-1]
+                print('\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]'
+                      .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
+                              target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]))
+
+        return outputs, detections, detections_conf, target_xyz
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -106,10 +126,20 @@ def parse_args():
     parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
+    parser.add_argument("--img-width", type=int, default=1280,
+                        help='img width in pixels')
+    parser.add_argument("--img-height", type=int, default=720,
+                        help='img height in pixels')
+    parser.add_argument("--thetaY", type=float, default=19.0,
+                        help='angular camera FOV in vertical direction. [deg]')
+    parser.add_argument("--thetaX", type=float, default=62.0,
+                        help='angular camera FOV in horizontal direction. [deg]')
+    parser.add_argument("--target-height", type=float, default=1.8,
+                        help='tracked target height in [meters]')
     return parser.parse_args()
 
 
-""" if __name__ == "__main__":
+if __name__ == "__main__":
     args = parse_args()
     cfg = get_config()
     cfg.merge_from_file(args.config_detection)
@@ -118,4 +148,4 @@ def parse_args():
     torch.device("cuda:1")
 
     tracker = Tracker(cfg, args)
-    tracker.run() """
+    tracker.run()
