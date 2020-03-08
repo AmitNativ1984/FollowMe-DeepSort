@@ -139,6 +139,7 @@ class Track:
             self.mean, self.covariance, detection.to_xyah())
         self.features.append(detection.feature)
         self.confidence = detection.confidence
+        self.cls_id = detection.cls_id
 
         self.hits += 1
         self.time_since_update = 0

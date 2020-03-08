@@ -27,10 +27,10 @@ class Tracker(object):
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
         self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
-                                   self.args.thetaX, self.args.thetaY)
-
+                                   self.args.thetaX)
+        self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
         self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, use_cuda=use_cuda, implementation='new')
+        self.detector = build_detector(cfg, args, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
@@ -73,15 +73,15 @@ class Tracker(object):
 
     def run(self):
         frame = 0
-        target_cls = [0, 2, 7]
-        target_ID = []
+        target_cls = list(self.cls_dict.keys())
+        target_name = list(self.cls_dict.values())
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             print('frame: {}'.format(frame))
-            outputs, detections, detections_conf, target_xyz = self.DeepSort(im, target_cls)
+            outputs, detections, detections_conf, target_xyz, cls_names = self.DeepSort(im, target_cls)
 
 
             # draw boxes for visualization
@@ -96,7 +96,7 @@ class Tracker(object):
                 bbox_xyxy = outputs[:, :4]
                 identities = outputs[:, -1]
                 ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=detections_conf,
-                                    target_xyz=target_xyz)
+                                    target_xyz=target_xyz, cls_names=cls_names)
                 self.bbox_xyxy = bbox_xyxy
                 self.identities = identities
             if self.args.display:
@@ -109,12 +109,20 @@ class Tracker(object):
 
             frame += 1
 
+            for i, target in enumerate(outputs):
+                id = target[-1]
+                print(
+                    '\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]\t cls: [{}]'
+                    .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
+                            target_xyz[i][0], target_xyz[i][1], target_xyz[i][2], cls_names[i]))
+
     def DeepSort(self, im, target_cls):
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)
         outputs = []
         detections = []
         detections_conf = []
+        cls_id = []
         target_xyz = []
 
         if bbox_xywh is not None:
@@ -128,9 +136,10 @@ class Tracker(object):
             bbox_xywh = bbox_xywh[mask]
             bbox_xywh[:, 3:] *= 1.2  # bbox dilation just in case bbox too small
             cls_conf = cls_conf[mask]
+            cls_ids = cls_ids[mask]
 
             # do tracking
-            outputs, detections, detections_conf = self.deepsort.update(bbox_xywh, cls_conf, im)
+            outputs, detections, detections_conf, cls_id = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
 
             # calculate object distance and direction from camera
             target_xyz = []
@@ -141,13 +150,8 @@ class Tracker(object):
                                                                y2=target[3],
                                                                obj_height_meters=self.args.target_height))
 
-            for i, target in enumerate(outputs):
-                id = target[-1]
-                print('\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]'
-                      .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
-                              target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]))
-
-        return outputs, detections, detections_conf, target_xyz
+        cls_name = [list(self.cls_dict.values())[int(target_cls)] for target_cls in cls_id]
+        return outputs, detections, detections_conf, target_xyz, cls_name
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -160,12 +164,12 @@ def parse_args():
     parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
+    parser.add_argument("--yolo-method", type=str, default='ultralytics', choices=['ultralytics', 'org'],
+                        help='yolo backbone method. can be one of: [ultralytics, org]')
     parser.add_argument("--img-width", type=int, default=1280,
                         help='img width in pixels')
     parser.add_argument("--img-height", type=int, default=720,
                         help='img height in pixels')
-    parser.add_argument("--thetaY", type=float, default=19.0,
-                        help='angular camera FOV in vertical direction. [deg]')
     parser.add_argument("--thetaX", type=float, default=62.0,
                         help='angular camera FOV in horizontal direction. [deg]')
     parser.add_argument("--target-height", type=float, default=1.8,

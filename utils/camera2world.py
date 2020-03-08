@@ -2,16 +2,15 @@ import numpy as np
 from math import pi
 
 class Cam2World(object):
-    def __init__(self, imgWidth, imgHeight, angFovX, angFovY):
+    def __init__(self, imgWidth, imgHeight, angFovX):
         """ angFovY, angFovX: angular field of view of camera in vertical and horizontal directions """
 
         self.H = imgHeight
         self.W = imgWidth
-        self.THETA_Y = pi / 180.0 * angFovY  # conveting to radians
         self.THETA_X = pi / 180.0 * angFovX   # converting to radians
 
         # focal point of camera, in pixels
-        self.F0 = (self.H / 2.0) / np.tan(self.THETA_Y / 2)
+        self.F0 = (self.W / 2.0) / np.tan(self.THETA_X / 2)
 
     def pix2angle(self, x, y):
         """ returns the vetical and horizontal angles of a ray transmitted through pixel (y,x)"""
