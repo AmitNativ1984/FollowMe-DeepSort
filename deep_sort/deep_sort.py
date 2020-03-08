@@ -25,7 +25,7 @@ class DeepSort(object):
     def update(self, bbox_xywh, confidences, cls_ids, ori_img):
         self.height, self.width = ori_img.shape[:2]
         # generate detections
-        features = self._get_features(bbox_xywh, ori_img)
+        features = self._get_features(bbox_xywh, ori_img)   # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
         detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
 
@@ -36,8 +36,8 @@ class DeepSort(object):
         detections = [detections[i] for i in indices]
 
         # update tracker
-        self.tracker.predict()
-        self.tracker.update(detections)
+        self.tracker.predict()  # predicting bbox position based on kf
+        self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
         outputs = []

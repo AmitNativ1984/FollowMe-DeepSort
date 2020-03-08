@@ -89,8 +89,10 @@ class Tracker(object):
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
-                confs = [detections[i].confidence for i in range(np.shape(detections)[0])]
-                # ori_im = draw_boxes(ori_im, DetectionsBBOXES, confs=confs)
+                bbox_xyxy = DetectionsBBOXES[:, :4]
+                identities = np.zeros(DetectionsBBOXES.shape[0])
+                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id,
+                                    target_xyz=target_xyz, cls_names=cls_names, clr=[0, 255, 0])
 
             if len(outputs) > 0:
                 bbox_xyxy = outputs[:, :4]
@@ -118,7 +120,7 @@ class Tracker(object):
 
     def DeepSort(self, im, target_cls):
         # do detection
-        bbox_xywh, cls_conf, cls_ids = self.detector(im)
+        bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         outputs = []
         detections = []
         detections_conf = []
@@ -134,11 +136,10 @@ class Tracker(object):
                     mask = cls_ids == cls
 
             bbox_xywh = bbox_xywh[mask]
-            bbox_xywh[:, 3:] *= 1.2  # bbox dilation just in case bbox too small
             cls_conf = cls_conf[mask]
             cls_ids = cls_ids[mask]
 
-            # do tracking
+            # run deepsort algorithm to match detections to tracks
             outputs, detections, detections_conf, cls_id = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
 
             # calculate object distance and direction from camera
@@ -156,7 +157,7 @@ class Tracker(object):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("VIDEO_PATH", type=str)
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov3.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
