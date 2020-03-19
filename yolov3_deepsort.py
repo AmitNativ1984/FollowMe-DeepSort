@@ -195,7 +195,7 @@ class Tracker(object):
         #print("2: {}".format(end - start))
         #sys.stdout.flush()
         #time.sleep(1)
-        return outputs, detections, detections_conf, target_xyz
+        return outputs, detections, detections_conf, target_xyz, len(outputs)
 
 
 
