@@ -57,7 +57,6 @@ class DeepSort(object):
             outputs = np.stack(outputs,axis=0)
         return outputs, detections, detections_conf, detections_cls_id
 
-
     """
     TODO:
         Convert bbox from xc_yc_w_h to xtl_ytl_w_h
