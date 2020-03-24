@@ -1,9 +1,9 @@
 DEEPSORT:
   REID_CKPT: "./DeepSort/deep_sort/deep/checkpoint/ckpt.t7"
-  MAX_DIST: 10   # distance between features of detections to be considered same object
+  MAX_DIST: 0.2   # distance between features of detections to be considered same object
   MIN_CONFIDENCE: 0.2
   NMS_MAX_OVERLAP: 0.5  # non max suppression between near objects
-  MAX_IOU_DISTANCE: 0.5   # distance in term of IOU distance between detections of same object
+  MAX_IOU_DISTANCE: 0.1   # distance in term of IOU distance between detections of same object
   MAX_AGE: 70           # tracks that exceed this frame number without successfull association of measurement have left scene
   N_INIT: 3           # number of frames to init a track
   NN_BUDGET: 300        # number of associated appearances descriptors on each track
