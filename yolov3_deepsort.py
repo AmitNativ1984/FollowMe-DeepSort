@@ -32,10 +32,10 @@ class Tracker(object):
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
         self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
-                                   self.args.thetaX, self.args.thetaY)
-
+                                   self.args.thetaX)
+        self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
         self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, use_cuda=use_cuda, implementation='org')
+        self.detector = build_detector(cfg, args, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
@@ -64,8 +64,8 @@ class Tracker(object):
         self.im_height = int(self.vdo.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         if self.args.save_path:
-            fourcc =  cv2.VideoWriter_fourcc(*'MJPG')
-            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 20, (self.im_width,self.im_height))
+            fourcc =  cv2.VideoWriter_fourcc(*'MP4V')
+            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width,self.im_height))
 
         assert self.vdo.isOpened()
         return self
@@ -78,15 +78,15 @@ class Tracker(object):
 
     def run(self):
         frame = 0
-        target_cls = [0, 2, 7]
-        target_ID = []
+        target_cls = list(self.cls_dict.keys())
+        target_name = list(self.cls_dict.values())
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             print('frame: {}'.format(frame))
-            outputs, detections, detections_conf, target_xyz = self.DeepSort(im, target_cls)
+            outputs, detections, detections_conf, target_xyz, cls_names = self.DeepSort(im, target_cls)
 
 
             # draw boxes for visualization
@@ -94,14 +94,16 @@ class Tracker(object):
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
-                confs = [detections[i].confidence for i in range(np.shape(detections)[0])]
-                # ori_im = draw_boxes(ori_im, DetectionsBBOXES, confs=confs)
+                bbox_xyxy = DetectionsBBOXES[:, :4]
+                identities = np.zeros(DetectionsBBOXES.shape[0])
+                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id,
+                                    target_xyz=target_xyz, cls_names=cls_names, clr=[0, 255, 0])
 
             if len(outputs) > 0:
                 bbox_xyxy = outputs[:, :4]
                 identities = outputs[:, -1]
                 ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=detections_conf,
-                                    target_xyz=target_xyz)
+                                    target_xyz=target_xyz, cls_names=cls_names)
                 self.bbox_xyxy = bbox_xyxy
                 self.identities = identities
             if self.args.display:
@@ -114,68 +116,32 @@ class Tracker(object):
 
             frame += 1
 
+
+        if self.args.save_path:
+            self.writer.release()
+
     def DeepSort(self, im, target_cls):
-
-        #start = time.time()
         im = self.asNumpyArray(im)
-        im = im.reshape(720,1280,3)
-        #end = time.time()
-        #print("asNumpyArray: {}".format(end - start))
-        #print("asNumpyArray type: {}".format(type(im)))
-       # print("asNumpyArray shape: {}".format(npArr.shape))
-        #sys.stdout.flush()
-        #time.sleep(1)
+        im = im.reshape(720, 1280, 3)
 
-
-
-        # print("type: {}".format(type(im)))
-        # sys.stdout.flush()
-        # time.sleep(1)
-
-        # start = time.time()
-        # list_im = list(im)
-        # end = time.time()
-        # print("0: {}".format(end - start))
-        # sys.stdout.flush()
-        # time.sleep(1)
-
-        # start = time.time()
-        # im = np.asarray(list_im).reshape(720,1280,3)
-        # end = time.time()
-        # print("action: {}".format(end - start))
-        # sys.stdout.flush()
-        # time.sleep(1)
-
-
-        # start = time.time()
-        # im = np.asarray(list(im)).reshape(720,1280,3)
-        # end = time.time()
-        # print("1: {}".format(end - start))
-        # sys.stdout.flush()
-        # time.sleep(1)
-
-        #start = time.time()
         # do detection
-        bbox_xywh, cls_conf, cls_ids = self.detector(im)
+        bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         outputs = []
         detections = []
         detections_conf = []
+        cls_id = []
         target_xyz = []
 
         if bbox_xywh is not None:
             # select person class
-            for cls in target_cls:
-                try:
-                    mask += cls_ids == cls
-                except Exception:
-                    mask = cls_ids == cls
+            mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
 
-            bbox_xywh = bbox_xywh[mask]
-            bbox_xywh[:, 3:] *= 1.2  # bbox dilation just in case bbox too small
-            cls_conf = cls_conf[mask]
+            bbox_xywh = bbox_xywh[0][mask]
+            cls_conf = cls_conf[0][mask]
+            cls_ids = cls_ids[0][mask]
 
-            # do tracking
-            outputs, detections, detections_conf = self.deepsort.update(bbox_xywh, cls_conf, im)
+            # run deepsort algorithm to match detections to tracks
+            outputs, detections, detections_conf, cls_id = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
 
             # calculate object distance and direction from camera
             target_xyz = []
@@ -186,22 +152,14 @@ class Tracker(object):
                                                                y2=target[3],
                                                                obj_height_meters=self.args.target_height))
 
-        #   for i, target in enumerate(outputs):
-        #       id = target[-1]
-        #       print('\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]'
-        #             .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
-        #                     target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]))
-        #end = time.time()
-        #print("2: {}".format(end - start))
-        #sys.stdout.flush()
-        #time.sleep(1)
-        return outputs, detections, detections_conf, target_xyz, len(outputs)
+        cls_name = [self.cls_dict[int(target_cls)] for target_cls in cls_id]
 
+        return outputs, detections, detections_conf, target_xyz, cls_name, len(outputs)
 
 
     def asNumpyArray(self, netArray):
         '''
-        Given a CLR `System.Array` returns a `numpy.ndarray`.  See _MAP_NET_NP for 
+        Given a CLR `System.Array` returns a `numpy.ndarray`.  See _MAP_NET_NP for
         the mapping of CLR types to Numpy dtypes.
         '''
 
@@ -209,7 +167,7 @@ class Tracker(object):
         'Single' : np.dtype('float32'),
         'Double' : np.dtype('float64'),
         'SByte'  : np.dtype('int8'),
-        'Int16'  : np.dtype('int16'), 
+        'Int16'  : np.dtype('int16'),
         'Int32'  : np.dtype('int32'),
         'Int64'  : np.dtype('int64'),
         'Byte'   : np.dtype('uint8'),
@@ -230,7 +188,7 @@ class Tracker(object):
         except KeyError:
             raise NotImplementedError("asNumpyArray does not yet support System type {}".format(netType) )
 
-        try: # Memmove 
+        try: # Memmove
             sourceHandle = GCHandle.Alloc(netArray, GCHandleType.Pinned)
             sourcePtr = sourceHandle.AddrOfPinnedObject().ToInt64()
             destPtr = npArray.__array_interface__['data'][0]
@@ -250,20 +208,18 @@ def parse_args():
     parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
+    parser.add_argument("--yolo-method", type=str, default='org', choices=['ultralytics', 'org'],
+                        help='yolo backbone method. can be one of: [ultralytics, org]')
     parser.add_argument("--img-width", type=int, default=1280,
                         help='img width in pixels')
     parser.add_argument("--img-height", type=int, default=720,
                         help='img height in pixels')
-    parser.add_argument("--thetaY", type=float, default=49.0,
-                        help='angular camera FOV in vertical direction. [deg]')
     parser.add_argument("--thetaX", type=float, default=77.04,
                         help='angular camera FOV in horizontal direction. [deg]')
     parser.add_argument("--target-height", type=float, default=1.8,
                         help='tracked target height in [meters]')
 
     return parser.parse_args()
-
-
 
 
 if __name__=="__main__":
