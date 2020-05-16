@@ -1,4 +1,3 @@
-import clr, System
 import os
 import cv2
 import time
@@ -8,16 +7,11 @@ import numpy as np
 import sys
 import ctypes
 from distutils.util import strtobool
-from System import Array, Int32
-from System.Runtime.InteropServices import GCHandle, GCHandleType
 
 from detector import build_detector
 from deep_sort import build_tracker
-from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
-
-
 
 class Tracker(object):
     def __init__(self, cfg, args):
