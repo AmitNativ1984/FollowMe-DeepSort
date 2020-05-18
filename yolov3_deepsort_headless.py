@@ -1,4 +1,5 @@
 import os
+from os.path import dirname, abspath, join
 import cv2
 import time
 import argparse
@@ -12,6 +13,14 @@ from detector import build_detector
 from deep_sort import build_tracker
 from utils.parser import get_config
 from utils.camera2world import Cam2World
+
+def get_merged_config():
+    cfg = get_config()
+
+    cfg.merge_from_file(join(dirname(__file__), 'configs', 'deep_sort.yaml'))
+    cfg.merge_from_file(join(dirname(__file__), 'configs', 'yolov3.yaml'))
+
+    return cfg
 
 class Tracker(object):
     def __init__(self, cfg, args):
