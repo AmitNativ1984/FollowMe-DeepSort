@@ -1,6 +1,5 @@
 import os
 from os.path import dirname, abspath, join
-import cv2
 import time
 import argparse
 import torch
