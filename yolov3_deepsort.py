@@ -5,10 +5,11 @@ import argparse
 import torch
 import numpy as np
 from distutils.util import strtobool
+import matplotlib.pyplot as plt
 
 from detector import build_detector
 from deep_sort import build_tracker
-from utils.draw import draw_boxes
+from utils.draw import draw_boxes, create_radar_plot
 from utils.parser import get_config
 from utils.camera2world import Cam2World
 
@@ -60,7 +61,7 @@ class Tracker(object):
 
         if self.args.save_path:
             fourcc =  cv2.VideoWriter_fourcc(*'MJPG')
-            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 20, (self.im_width,self.im_height))
+            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 20, (self.im_width, self.im_height))
 
         assert self.vdo.isOpened()
         return self
@@ -72,9 +73,13 @@ class Tracker(object):
         
 
     def run(self):
+        VISUALIZE_DETECTIONS = False
         frame = 0
         target_cls = list(self.cls_dict.keys())
         target_name = list(self.cls_dict.values())
+
+        radar_fig, ax_polar, ax_carthesian = create_radar_plot()
+
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
@@ -85,7 +90,7 @@ class Tracker(object):
 
 
             # draw boxes for visualization
-            if len(detections) > 0:
+            if len(detections) > 0 and VISUALIZE_DETECTIONS:
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
@@ -101,30 +106,45 @@ class Tracker(object):
                                     target_xyz=target_xyz, cls_names=cls_names)
                 self.bbox_xyxy = bbox_xyxy
                 self.identities = identities
+
+            frame += 1
+
             if self.args.display:
                 cv2.imshow("test", ori_im)
                 key = cv2.waitKey(1)
                 cv2.setMouseCallback("test", self.select_target)
-
-            if self.args.save_path:
-                self.writer.write(ori_im)
-
-            frame += 1
+                radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
+                                                                       ax_carthesian=ax_carthesian)
 
             for i, target in enumerate(outputs):
+
                 id = target[-1]
                 print(
                     '\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]\t cls: [{}]'
                     .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
                             target_xyz[i][0], target_xyz[i][1], target_xyz[i][2], cls_names[i]))
 
+                ax_carthesian.scatter(target_xyz[i][0], target_xyz[i][2], marker='x', color='r')
+                # ax_carthesian.scatter(1, 3, marker='x', color='b')
+
+            plt.pause(0.1)
+
+
+            if self.args.save_path:
+                self.writer.write(ori_im)
+
+
+
     def DeepSort(self, im, target_cls):
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
+        bbox_xywh = bbox_xywh[0]
+        cls_conf = cls_conf[0]
+        cls_ids = cls_ids[0]
         outputs = []
         detections = []
         detections_conf = []
-        cls_id = []
+        cls_name = []
         target_xyz = []
 
         if bbox_xywh is not None:
@@ -140,7 +160,7 @@ class Tracker(object):
             cls_ids = cls_ids[mask]
 
             # run deepsort algorithm to match detections to tracks
-            outputs, detections, detections_conf, cls_id = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
+            outputs, detections, detections_conf, cls_ids = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
 
             # calculate object distance and direction from camera
             target_xyz = []
@@ -150,8 +170,8 @@ class Tracker(object):
                                                                x2=target[2],
                                                                y2=target[3],
                                                                obj_height_meters=self.args.target_height))
+                cls_name = [self.cls_dict[int(id)] for id in cls_ids]
 
-        cls_name = [list(self.cls_dict.values())[int(target_cls)] for target_cls in cls_id]
         return outputs, detections, detections_conf, target_xyz, cls_name
 
 def parse_args():
@@ -171,13 +191,13 @@ def parse_args():
                         help='img width in pixels')
     parser.add_argument("--img-height", type=int, default=720,
                         help='img height in pixels')
-    parser.add_argument("--thetaX", type=float, default=62.0,
+    parser.add_argument("--thetaX", type=float, default=77.04,#62.0,
                         help='angular camera FOV in horizontal direction. [deg]')
     parser.add_argument("--target-height", type=float, default=1.8,
                         help='tracked target height in [meters]')
 
     return parser.parse_args()
-
+# 90x 67.5y
 
 if __name__=="__main__":
     args = parse_args()
@@ -189,3 +209,5 @@ if __name__=="__main__":
 
     with Tracker(cfg, args) as tracker:
         tracker.run()
+
+    plt.show()
