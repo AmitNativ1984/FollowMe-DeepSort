@@ -48,3 +48,56 @@ class Cam2World(object):
         y = z * np.tan(theta_y0)
 
         return [x, y, z]
+
+    def get_target_relative_xyz(self, robot_utm, target_utm):
+        relative_xyz = -robot_utm + target_utm
+
+        return relative_xyz
+
+    def compute_yaw2camera_rotation_matrix(self, robot_yaw, camera_angle=0):
+        """ robot_yaw and camera_angle are give in angles!! [o]"""
+        while robot_yaw > 360:
+            robot_yaw -= 360
+        while camera_angle > 360:
+            camera_angle -= 360
+
+        robot_yaw = np.deg2rad(robot_yaw)
+        camera_angle = np.deg2rad(camera_angle)
+
+        # rotation from yaw angle back to 0 degress
+        R1 = np.array([[np.cos(robot_yaw), -np.sin(robot_yaw)],
+                      [np.sin(robot_yaw), np.cos(robot_yaw)]])
+
+        # rotating from 0 degrees to camera angle of sight
+        R2 = np.array([[np.cos(camera_angle), np.sin(camera_angle)],
+                       [-np.sin(camera_angle), np.cos(camera_angle)]])
+
+        RotationMat = np.matmul(R2, R1)
+
+        return RotationMat
+
+    def project_xyz_in_local_camera_coordinates_to_pixels(self, xyz):
+        # todo: add rows too!!!
+        x = xyz[0]
+        # y = xyz[1]
+        # z = xyz[2]
+        z = xyz[1]
+
+        cols = x / z * self.F0 + self.W / 2
+        # rows = y / z * self.F0 + self.H / 2
+
+        return cols #rows, cols
+
+    def convert_target_utm_relative_xyz(self, robot_utm, target_utm, robot_yaw, camera_angle=0,
+                                        camera_pos_on_vehicle=np.array([[0], [1.7]])):
+        target_relative_pos = self.get_target_relative_xyz(robot_utm, target_utm)
+        RotationMat = self.compute_yaw2camera_rotation_matrix(robot_yaw, camera_angle)
+
+        target_xyz = np.matmul(RotationMat, target_relative_pos) - camera_pos_on_vehicle
+        return target_xyz
+
+    def xyz2rowcol(self, target_xyz):
+        # todo: add rows too!!!!
+        col = self.project_xyz_in_local_camera_coordinates_to_pixels(target_xyz)
+
+        return col, #row, col
