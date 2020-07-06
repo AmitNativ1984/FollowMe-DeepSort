@@ -1,0 +1,8 @@
+YOLOV3:
+  BACKBONE: "ultralytics"
+  CFG: "./DeepSort/detector/yolov3_ultralytics/cfg/yolov3.cfg"
+  WEIGHT: "./DeepSort/detector/yolov3_ultralytics/weights/yolov3.pt"
+  CLASS_NAMES: "./DeepSort/detector/yolov3_ultralytics/data/coco.names"
+
+  SCORE_THRESH: 0.2
+  NMS_THRESH: 0.5
