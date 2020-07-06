@@ -1,3 +1,0 @@
-[submodule "detector/yolov3"]
-	path = detector/yolov3
-	url = /home/amit/Dev/yolov3
