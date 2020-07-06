@@ -61,7 +61,7 @@ class Tracker(object):
 
         if self.args.save_path:
             fourcc =  cv2.VideoWriter_fourcc(*'MJPG')
-            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 20, (self.im_width, self.im_height))
+            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width, self.im_height))
 
         assert self.vdo.isOpened()
         return self
@@ -113,8 +113,8 @@ class Tracker(object):
                 cv2.imshow("test", ori_im)
                 key = cv2.waitKey(1)
                 cv2.setMouseCallback("test", self.select_target)
-                radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
-                                                                       ax_carthesian=ax_carthesian)
+                # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
+                #                                                        ax_carthesian=ax_carthesian)
 
             for i, target in enumerate(outputs):
 
@@ -124,7 +124,7 @@ class Tracker(object):
                     .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
                             target_xyz[i][0], target_xyz[i][1], target_xyz[i][2], cls_names[i]))
 
-                ax_carthesian.scatter(target_xyz[i][0], target_xyz[i][2], marker='x', color='r')
+                # ax_carthesian.scatter(target_xyz[i][0], target_xyz[i][2], marker='x', color='r')
                 # ax_carthesian.scatter(1, 3, marker='x', color='b')
 
             plt.pause(0.1)
@@ -133,7 +133,8 @@ class Tracker(object):
             if self.args.save_path:
                 self.writer.write(ori_im)
 
-
+        self.writer.release()
+        cv2.destroyAllWindows()
 
     def DeepSort(self, im, target_cls):
         # do detection
@@ -182,7 +183,7 @@ def parse_args():
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
-    parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
+    parser.add_argument("--save_path", type=str, default="./demo/woods_thermal.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
     parser.add_argument("--yolo-method", type=str, default='ultralytics', choices=['ultralytics', 'org'],
