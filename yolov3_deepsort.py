@@ -73,12 +73,12 @@ class Tracker(object):
         
 
     def run(self):
-        VISUALIZE_DETECTIONS = False
+        VISUALIZE_DETECTIONS = True
         frame = 0
         target_cls = list(self.cls_dict.keys())
         target_name = list(self.cls_dict.values())
 
-        radar_fig, ax_polar, ax_carthesian = create_radar_plot()
+        # radar_fig, ax_polar, ax_carthesian = create_radar_plot()
 
         while self.vdo.grab():
             start = time.time()
@@ -183,7 +183,7 @@ def parse_args():
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
-    parser.add_argument("--save_path", type=str, default="./demo/woods_thermal.avi")
+    parser.add_argument("--save_path", type=str, default="./demo/woods_camouflage_test.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
     parser.add_argument("--yolo-method", type=str, default='ultralytics', choices=['ultralytics', 'org'],
