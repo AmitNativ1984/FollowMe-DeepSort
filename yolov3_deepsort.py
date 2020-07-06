@@ -17,7 +17,7 @@ from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
 
-
+DEBUG_MODE = True
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -64,7 +64,7 @@ class Tracker(object):
         self.im_height = int(self.vdo.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         if self.args.save_path:
-            fourcc =  cv2.VideoWriter_fourcc(*'MP4V')
+            fourcc =  cv2.VideoWriter_fourcc(*'XVID')
             self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width,self.im_height))
 
         assert self.vdo.isOpened()
@@ -86,7 +86,7 @@ class Tracker(object):
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             print('frame: {}'.format(frame))
-            outputs, detections, detections_conf, target_xyz, cls_names = self.DeepSort(im, target_cls)
+            outputs, detections, detections_conf, target_xyz, cls_names, num_outputs = self.DeepSort(im, target_cls)
 
 
             # draw boxes for visualization
@@ -121,7 +121,9 @@ class Tracker(object):
             self.writer.release()
 
     def DeepSort(self, im, target_cls):
-        im = self.asNumpyArray(im)
+        if not DEBUG_MODE:
+            im = self.asNumpyArray(im)
+
         im = im.reshape(720, 1280, 3)
 
         # do detection
@@ -132,7 +134,7 @@ class Tracker(object):
         cls_id = []
         target_xyz = []
 
-        if bbox_xywh is not None:
+        if bbox_xywh[0] is not None:
             # select person class
             mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
 
@@ -199,17 +201,15 @@ class Tracker(object):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-   # parser.add_argument("VIDEO_PATH", type=str)
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov3.yaml")
-    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
-    parser.add_argument("--ignore_display", dest="display", action="store_false", default=False)
+    parser.add_argument("VIDEO_PATH", type=str)
+    parser.add_argument("--config_detection", type=str, default="./DeepSort/configs/yolov3_probot_ultralytics.yaml")
+    parser.add_argument("--config_deepsort", type=str, default="./DeepSort/configs/deep_sort.yaml")
+    parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
     parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
-    parser.add_argument("--yolo-method", type=str, default='org', choices=['ultralytics', 'org'],
-                        help='yolo backbone method. can be one of: [ultralytics, org]')
     parser.add_argument("--img-width", type=int, default=1280,
                         help='img width in pixels')
     parser.add_argument("--img-height", type=int, default=720,
