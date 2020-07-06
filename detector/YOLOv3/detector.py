@@ -47,7 +47,7 @@ class YOLOv3(object):
             boxes = boxes[boxes[:,-2]>self.score_thresh, :] # bbox xmin ymin xmax ymax
 
         if len(boxes)==0:
-            return None,None,None
+            return [None],[None],[None]
         
         height , width = ori_img.shape[:2]
         bbox = boxes[:,:4]
@@ -58,7 +58,7 @@ class YOLOv3(object):
         bbox = bbox * torch.FloatTensor([[width, height, width, height]])
         cls_conf = boxes[:,5]
         cls_ids = boxes[:,6].long()
-        return bbox.numpy(), cls_conf.numpy(), cls_ids.numpy()
+        return [bbox.numpy()], [cls_conf.numpy()], [cls_ids.numpy()]
 
     def load_class_names(self,namesfile):
         with open(namesfile, 'r', encoding='utf8') as fp:

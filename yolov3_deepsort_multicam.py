@@ -227,7 +227,7 @@ def parse_args():
                         help="left cam stream")
     parser.add_argument("--cam2", type=str, required=False,
                         help="right cam stream")
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
