@@ -1,0 +1,7 @@
+YOLOV3:
+  CFG: "detector/yolov3_ultralytics/cfg/yolov3.cfg"
+  WEIGHT: "detector/yolov3_ultralytics/weights/best_coco_probot_woods.pt"
+  CLASS_NAMES: "detector/yolov3_ultralytics/data/coco.names"
+
+  SCORE_THRESH: 0.6
+  NMS_THRESH: 0.5

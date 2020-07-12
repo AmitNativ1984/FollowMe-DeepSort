@@ -260,7 +260,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=str, help='folder containing all recorded data')
     parser.add_argument("--batch-size", type=int, default=1, help='folder containing all recorded data')
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot.yaml")
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
