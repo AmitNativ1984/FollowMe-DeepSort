@@ -12,5 +12,5 @@ build/
 *.so
 *.mpeg
 *.pt
-events.out.tfevents*.*
+*events.out.tfevents*.*
 
