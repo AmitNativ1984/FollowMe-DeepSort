@@ -3,7 +3,7 @@ __pycache__/
 build/
 *.egg-info
 .idea/
-*runs/
+*runs/*
 
 # Files
 *.weights
