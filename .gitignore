@@ -3,6 +3,7 @@ __pycache__/
 build/
 *.egg-info
 .idea/
+/detector/yolov3_ultralytics/runs/
 
 # Files
 *.weights
@@ -11,6 +12,5 @@ build/
 *.avi
 *.so
 *.mpeg
-*.pt
-*events.out.tfevents*.*
+
 
