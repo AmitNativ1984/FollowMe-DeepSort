@@ -3,6 +3,7 @@ __pycache__/
 build/
 *.egg-info
 .idea/
+*runs/
 
 # Files
 *.weights
@@ -11,4 +12,5 @@ build/
 *.avi
 *.so
 *.mpeg
+*.pt
 
