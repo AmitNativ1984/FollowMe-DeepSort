@@ -217,29 +217,22 @@ class Tracker(object):
 
 
     def DeepSort(self, im, target_cls):
-        # todo: add gps inputs
+
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
-        bbox_xywh = bbox_xywh[0]
-        cls_conf = cls_conf[0]
-        cls_ids = cls_ids[0]
         outputs = []
         detections = []
         detections_conf = []
         cls_name = []
         target_xyz = []
 
-        if bbox_xywh is not None:
+        if bbox_xywh[0] is not None:
             # select person class
-            for cls in target_cls:
-                try:
-                    mask += cls_ids == cls
-                except Exception:
-                    mask = cls_ids == cls
+            mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
 
-            bbox_xywh = bbox_xywh[mask]
-            cls_conf = cls_conf[mask]
-            cls_ids = cls_ids[mask]
+            bbox_xywh = bbox_xywh[0][mask]
+            cls_conf = cls_conf[0][mask]
+            cls_ids = cls_ids[0][mask]
 
             # run deepsort algorithm to match detections to tracks
             outputs, detections, detections_conf, cls_ids = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
