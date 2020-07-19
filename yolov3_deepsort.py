@@ -132,10 +132,10 @@ class Tracker(object):
 
                 for i, target in enumerate(outputs):
                     id = target[-1]
-                    # print(
-                    #     '\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]\t cls: [{}]'
-                    #         .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
-                    #                 target_xyz[i][0], target_xyz[i][1], target_xyz[i][2], cls_names[i]))
+                    print('\t\t target [{}] \t cls: [{}]\t ({},{},{},{})\t conf {:.2f}\t'
+                          .format(id, cls_names[0], target[0], target[1], target[2], target[3],
+                                  detections_conf[i]))  # ,
+                                    #target_xyz[i][0], target_xyz[i][1], target_xyz[i][2], cls_names[i]))
 
             if self.args.display:
                 cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
