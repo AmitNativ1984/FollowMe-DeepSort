@@ -2,15 +2,53 @@ import numpy as np
 from math import pi
 
 class Cam2World(object):
-    def __init__(self, imgWidth, imgHeight, angFovX):
-        """ angFovY, angFovX: angular field of view of camera in vertical and horizontal directions """
+    def __init__(self, imgWidth, imgHeight, angFovX, obj_height_meters=1.8, camAngle=0, cam_pos=[0, 0]):
+        """ angFovY, angFovX: angular field of view of camera in vertical and horizontal directions
+            COORDINATES CONVERSION: (X, Z, Y) = [HORIZONTAL, DEPTH, HEIGHT]
+            COORDINATES CONVERSION UTM: (E, N, HEIGHT)
+        """
+
 
         self.H = imgHeight
         self.W = imgWidth
         self.THETA_X = pi / 180.0 * angFovX   # converting to radians
-
+        self.camAngle = camAngle
+        self.cam_position_rel_to_imu = np.array(cam_pos)
         # focal point of camera, in pixels
         self.F0 = (self.W / 2.0) / np.tan(self.THETA_X / 2)
+        self.obj_height_meters = obj_height_meters
+
+    def process_new_telemetry(self, telemetry):
+        """" update all matrices with new telemerty data """
+        yaw = telemetry["yaw_pitch_roll"][0][0]
+        while yaw > 360:
+            yaw -= 360
+        while yaw > 360:
+            yaw -= 360
+        telemetry["yaw_pitch_roll"][0][0] = yaw
+
+        telemetry["yaw_pitch_roll"][0] *= np.pi / 180
+
+        self.telemetry = telemetry
+        self.telemetry["utmpos"] = self.telemetry["utmpos"].transpose()
+
+        self.R_yaw, self.R_cam = self.calc_rotation_matrices()
+        # self.T = self.calc_cam_translation()
+
+    def calc_rotation_matrices(self):
+        yaw, _, _ = self.telemetry["yaw_pitch_roll"][0]
+
+        # rotate cam according to robot yaw
+        R_yaw = np.array([[np.cos(yaw),  np.sin(yaw), 0],
+                          [-np.sin(yaw), np.cos(yaw), 0],
+                          [0,            0,           1]])
+
+        # rotate cam relative to robot
+        R_cam = np.array([[np.cos(self.camAngle), -np.sin(self.camAngle), 0],
+                          [np.sin(self.camAngle), np.cos(self.camAngle),  0],
+                          [0,                      0,                     1]])
+
+        return R_yaw, R_cam
 
     def pix2angle(self, x, y):
         """ returns the vetical and horizontal angles of a ray transmitted through pixel (y,x)"""
@@ -23,20 +61,22 @@ class Cam2World(object):
 
         return theta_x, theta_y
 
-    def obj_world_xyz(self, x1, y1, x2, y2, obj_height_meters):
-        """ returns relative coordinates from camera center (x,y,z)
+    def convert_bbox_tlbr_to_relative_to_camera_xyz(self, bbox_tlbr):
+        """ returns relative coordinates from camera center (horizontal,depth,height) = (x,z,y)
             (x1,y1): top left coordinates in pixels
             (x2,y2): bottom right coordinates in pixels
             obj_height_meters: object height in meters
         """
 
+        x1, y1, x2, y2 = bbox_tlbr
+
         theta_x_TopLeft, theta_y_TopLeft = self.pix2angle(x1, y1)
         theta_x_BottomRight, theta_y_BottomRight = self.pix2angle(x2, y2)
 
-        h0 = obj_height_meters
+        h0 = self.obj_height_meters
 
         # calculating distance to object in meters: Z/H0 = z/h0 = 1/tan(theta_y1 - theta_y2)
-        z = h0 / (np.tan(theta_y_TopLeft) - np.tan(theta_y_BottomRight))
+        y = h0 / (np.tan(theta_y_TopLeft) - np.tan(theta_y_BottomRight))
 
         # calculating angle to bbox center:
         x0_ps = np.mean([x1, x2])
@@ -44,37 +84,47 @@ class Cam2World(object):
 
         theta_x0, theta_y0 = self.pix2angle(x0_ps, y0_ps)
 
-        x = z * np.tan(theta_x0)
-        y = z * np.tan(theta_y0)
+        x = y * np.tan(theta_x0)
+        z = y * np.tan(theta_y0)
 
-        return [x, y, z]
+        return np.array([x, y, z])
+
+    def convert_bbox_tlbr_to_utm_coordinates(self, bbox_tlbr):
+
+        xyz_rel2cam = np.array([self.convert_bbox_tlbr_to_relative_to_camera_xyz(bbox_tlbr)]).transpose() #(x, height, depth)
+
+        # rotate camera relative to robot 12 O'clock and translate coordinates to IMU
+        xyz_rel2imu = self.R_cam @ xyz_rel2cam - self.cam_position_rel_to_imu
+
+        # rotate target xyz position relative to north (yaw angle) and add telemetry to get total utm pos
+        """ utm_pos is [long, lat, height] = [x,z,y] """
+        utm_pos = self.R_yaw @ xyz_rel2imu + self.telemetry["utmpos"]
+
+        return utm_pos
+
+    def convert_relative_to_camera_xyz_to_bbox_center(self, xyz_rel2cam):
+        x, y, z = xyz_rel2cam
+
+        col_center = x / y * self.F0 + self.W / 2
+        row_center = -z / y * self.F0 + self.H / 2
+
+        return row_center, col_center
+
+    def convert_utm_coordinates_to_bbox_center(self, utm_pos):
+        # from utm coordinates to xyz coordinates relative to imu:
+        xyz_rel2imu = np.linalg.inv(self.R_yaw) @ (utm_pos - self.telemetry["utmpos"])
+
+        # from xyz rel2imu and aligned to vehicle 12 O'clock, to xyz_rel2cam
+        xyz_rel2cam = np.linalg.inv(self.R_cam) @ (xyz_rel2imu + self.cam_position_rel_to_imu)
+
+        row_center, col_center = self.convert_relative_to_camera_xyz_to_bbox_center(xyz_rel2cam)
+
+        return row_center, col_center
 
     def get_target_relative_xyz(self, robot_utm, target_utm):
         relative_xyz = -robot_utm + target_utm
 
         return relative_xyz
-
-    def compute_yaw2camera_rotation_matrix(self, robot_yaw, camera_angle=0):
-        """ robot_yaw and camera_angle are give in angles!! [o]"""
-        while robot_yaw > 360:
-            robot_yaw -= 360
-        while camera_angle > 360:
-            camera_angle -= 360
-
-        robot_yaw = np.deg2rad(robot_yaw)
-        camera_angle = np.deg2rad(camera_angle)
-
-        # rotation from yaw angle back to 0 degress
-        R1 = np.array([[np.cos(robot_yaw), -np.sin(robot_yaw)],
-                      [np.sin(robot_yaw), np.cos(robot_yaw)]])
-
-        # rotating from 0 degrees to camera angle of sight
-        R2 = np.array([[np.cos(camera_angle), np.sin(camera_angle)],
-                       [-np.sin(camera_angle), np.cos(camera_angle)]])
-
-        RotationMat = np.matmul(R2, R1)
-
-        return RotationMat
 
     def project_xyz_in_local_camera_coordinates_to_pixels(self, xyz):
         # todo: add rows too!!!
