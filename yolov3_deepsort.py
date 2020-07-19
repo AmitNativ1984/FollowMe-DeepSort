@@ -44,20 +44,6 @@ class Tracker(object):
         self.target_id = []
 
 
-    def select_target(self, event, col, row, flag, params):
-        if event == cv2.EVENT_LBUTTONDBLCLK:  # right mouse click
-            print('selected pixel (row, col) = ({},{})'.format(row, col))
-            self.target_init_pos = [row, col]
-
-            # selecting track id
-            for ind, bbox in enumerate(self.bbox_xyxy):
-                if bbox[0] <= col <= bbox[2] and bbox[1] <= row <= bbox[3]:
-                    self.target_id = self.identities[ind]
-                    print("selected target {}".format(self.target_id))
-
-        else:
-            pass
-
     def run(self):
         VISUALIZE_DETECTIONS = True
         target_cls = list(self.cls_dict.keys())
@@ -80,10 +66,10 @@ class Tracker(object):
 
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
             # update cam2world functions with new telemetry:
-            cam2world.process_new_telemetry(sample["telemetry"])
+            cam2world.digest_new_telemetry(sample["telemetry"])
             ori_im = sample["image"].numpy().squeeze(0)
 
-            outputs, detections, detections_conf, target_xyz, cls_names = self.DeepSort(ori_im, target_cls)
+            outputs, detections = self.DeepSort(sample, cam2world)
 
             # draw boxes for visualization
 
@@ -125,48 +111,41 @@ class Tracker(object):
             if len(outputs) > 0:
                 bbox_xyxy = outputs[:, :4]
                 identities = outputs[:, -1]
-                ori_im = draw_boxes(ori_im, bbox_xyxy, track_id=identities, confidence=detections_conf,
-                                    target_xyz=target_xyz, cls_names=cls_names, color=[255, 0, 0])
+                confidence = [detection.confidence for detection in detections]
+                utm_pos = [detection.to_utm() for detection in detections]
+                cls_names = [self.cls_dict[detection.cls_id] for detection in detections]
+                ori_im = draw_boxes(ori_im, bbox_xyxy, track_id=identities, confidence=confidence,
+                                    target_xyz=utm_pos, cls_names=cls_names, color=[255, 0, 0])
                 self.bbox_xyxy = bbox_xyxy
                 self.identities = identities
 
                 for i, target in enumerate(outputs):
                     id = target[-1]
-                    print('\t\t target [{}] \t cls: [{}]\t ({},{},{},{})\t conf {:.2f}\t'
-                          .format(id, cls_names[0], target[0], target[1], target[2], target[3],
-                                  detections_conf[i]))  # ,
-                                    #target_xyz[i][0], target_xyz[i][1], target_xyz[i][2], cls_names[i]))
+                    print('\t\t target [{}] \t ({},{},{},{})\t'
+                          .format(id, target[0], target[1], target[2], target[3]))
 
             if self.args.display:
                 cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
                 key = cv2.waitKey(1)
-                cv2.setMouseCallback("test", self.select_target)
                 radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
                                                                        ax_carthesian=ax_carthesian)
                 ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1], marker='o', color='b', alpha=0.5)
 
-
-
-
-
-
             plt.pause(0.1)
-
 
             if self.args.save_path:
                 self.writer.write(ori_im)
 
 
+    def DeepSort(self, sample, camera2world):
 
-    def DeepSort(self, im, target_cls):
+        im = sample["image"].numpy().squeeze(0)
 
-        # do detection
-        bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         outputs = []
         detections = []
-        detections_conf = []
-        cls_name = []
-        target_xyz = []
+
+        # do detection
+        bbox_xywh, cls_conf, cls_ids = self.detector(im)  # get all detections from image
 
         if bbox_xywh[0] is not None:
             # select person class
@@ -177,17 +156,9 @@ class Tracker(object):
             cls_ids = cls_ids[0][mask]
 
             # run deepsort algorithm to match detections to tracks
-            outputs, detections, detections_conf, cls_ids = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
+            outputs, detections = self.deepsort.update(camera2world, bbox_xywh, cls_conf, cls_ids, im)
 
-            # calculate object distance and direction from camera
-            target_xyz = []
-            for i, target in enumerate(outputs):
-                bbox_tlbr = target[:4]
-                # target_xyz.append(self.cam2world.obj_xyz_relative_to_camera(bbox_tlbr,
-                #                                                             obj_height_meters=self.args.target_height))
-                cls_name = [self.cls_dict[int(id)] for id in cls_ids]
-
-        return outputs, detections, detections_conf, target_xyz, cls_name
+        return outputs, detections
 
 def parse_args():
     parser = argparse.ArgumentParser()

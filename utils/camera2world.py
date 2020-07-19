@@ -18,7 +18,7 @@ class Cam2World(object):
         self.F0 = (self.W / 2.0) / np.tan(self.THETA_X / 2)
         self.obj_height_meters = obj_height_meters
 
-    def process_new_telemetry(self, telemetry):
+    def digest_new_telemetry(self, telemetry):
         """" update all matrices with new telemerty data """
         yaw = telemetry["yaw_pitch_roll"][0][0]
         while yaw > 360:
