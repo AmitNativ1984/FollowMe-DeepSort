@@ -17,7 +17,7 @@ from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
 
-DEBUG_MODE = True
+DEBUG_MODE = False
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -33,7 +33,8 @@ class Tracker(object):
 
         self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
                                    self.args.thetaX)
-        self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
+        #self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
+        self.cls_dict = {0: 'person'}
         self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, args, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
@@ -201,10 +202,10 @@ class Tracker(object):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("VIDEO_PATH", type=str)
+    # parser.add_argument("VIDEO_PATH", type=str)
     parser.add_argument("--config_detection", type=str, default="./DeepSort/configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./DeepSort/configs/deep_sort.yaml")
-    parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
+    parser.add_argument("--ignore_display", dest="display", action="store_false", default=False)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
     parser.add_argument("--save_path", type=str, default="./demo/demo.avi")

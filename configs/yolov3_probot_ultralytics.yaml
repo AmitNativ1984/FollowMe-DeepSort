@@ -4,5 +4,5 @@ YOLOV3:
   WEIGHT: "./DeepSort/detector/yolov3_ultralytics/weights/yolov3.pt"
   CLASS_NAMES: "./DeepSort/detector/yolov3_ultralytics/data/coco.names"
 
-  SCORE_THRESH: 0.2
+  SCORE_THRESH: 0.75
   NMS_THRESH: 0.5
