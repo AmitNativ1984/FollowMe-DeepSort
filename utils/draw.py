@@ -30,17 +30,22 @@ def draw_boxes(img, bbox, confidence=None, track_id=None, target_xyz=None, cls_n
         y1 += offset[1]
         y2 += offset[1]
 
-        label = track_id[i]
-        t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_DUPLEX, 0.5, 2)[0]
+        t_size = cv2.getTextSize(str(track_id[i]), cv2.FONT_HERSHEY_DUPLEX, 0.5, 2)[0]
         cv2.rectangle(img, (x1, y1), (x2,y2), color, 3)
         cv2.rectangle(img, (x1, y1), (x1 + t_size[0] + 3, y1 + t_size[1] + 4), color, -1)
-        cv2.putText(img, label, (x1, y1 + t_size[1] + 4), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
+        cv2.putText(img, str(track_id[i]), (x1, y1 + t_size[1] + 4), cv2.FONT_HERSHEY_DUPLEX, 0.5, [255, 255, 255], 1)
 
-        utm_str = "(" + ", ".join([str(coord) for coord in list(np.round(target_xyz[i].transpose().squeeze(), 3))]) + ")"
-        cv2.putText(img, '{}{:.3f}'.format("conf:", confidence[i]), (x1, y2 + 2 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
-        cv2.putText(img, '{}'.format(cls_names[i]), (x1, y2 + 4 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
-        cv2.putText(img, utm_str,
-                    (x1, y2 + 6 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
+
+        if confidence:
+            cv2.putText(img, '{}{:.3f}'.format("conf:", confidence[i]), (x1, y2 + 2 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
+        if cls_names:
+            cv2.putText(img, '{}'.format(cls_names[i]), (x1, y2 + 4 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
+
+        if len(target_xyz) > 0:
+            utm_str = "(" + ", ".join(
+                [str(coord) for coord in list(np.round(target_xyz[i].transpose().squeeze(), 3))]) + ")"
+            cv2.putText(img, utm_str,
+                        (x1, y2 + 6 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
 
     return img
 

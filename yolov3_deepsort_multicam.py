@@ -146,14 +146,14 @@ class Tracker(object):
                         DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
                         bbox_xyxy = DetectionsBBOXES[:, :4]
                         identities = np.zeros(DetectionsBBOXES.shape[0])
-                        img = draw_boxes(img, bbox_xyxy, identities, target_id=self.target_id,
-                                            target_xyz=target_xyz, cls_names=cls_names, clr=[0, 255, 0])
+                        img = draw_boxes(img, bbox_xyxy, identities, track_id=self.target_id,
+                                         target_xyz=target_xyz, cls_names=cls_names, clr=[0, 255, 0])
 
                     if len(outputs) > 0:
                         bbox_xyxy = outputs[:, :4]
                         identities = outputs[:, -1]
-                        img = draw_boxes(img, bbox_xyxy, identities, target_id=self.target_id, confs=detections_conf,
-                                            target_xyz=target_xyz, cls_names=cls_names)
+                        img = draw_boxes(img, bbox_xyxy, identities, track_id=self.target_id, confidence=detections_conf,
+                                         target_xyz=target_xyz, cls_names=cls_names)
                         self.bbox_xyxy = bbox_xyxy
                         self.identities = identities
                     if self.args.display:
@@ -208,11 +208,11 @@ class Tracker(object):
             # calculate object distance and direction from camera
             target_xyz = []
             for i, target in enumerate(outputs):
-                target_xyz.append(self.cam2world.obj_world_xyz(x1=target[0],
-                                                               y1=target[1],
-                                                               x2=target[2],
-                                                               y2=target[3],
-                                                               obj_height_meters=self.args.target_height))
+                target_xyz.append(self.cam2world.obj_xyz_relative_to_camera(x1=target[0],
+                                                                            y1=target[1],
+                                                                            x2=target[2],
+                                                                            y2=target[3],
+                                                                            obj_height_meters=self.args.target_height))
 
         cls_name = [list(self.cls_dict.values())[int(target_cls)] for target_cls in cls_id]
         return outputs, detections, detections_conf, target_xyz, cls_name

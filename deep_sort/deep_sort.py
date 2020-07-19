@@ -36,6 +36,7 @@ class DeepSort(object):
         detections = [detections[i] for i in indices]
 
         # update tracker
+        # todo: update cam2world with telemetry
         self.tracker.predict()  # predicting bbox position based on kf
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
