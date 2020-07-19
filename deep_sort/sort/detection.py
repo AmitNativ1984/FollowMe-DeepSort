@@ -24,13 +24,18 @@ class Detection(object):
     feature : ndarray | NoneType
         A feature vector that describes the object contained in this image.
 
+    utm_coordinates: ndarray
+        UTM coordinates in format '(lat, long, height)'
+
     """
 
-    def __init__(self, tlwh, confidence, cls_id, feature):
+    def __init__(self, camera2world, tlwh, confidence, cls_id, feature):
         self.tlwh = np.asarray(tlwh, dtype=np.float)
         self.confidence = float(confidence)
         self.feature = np.asarray(feature, dtype=np.float32)
         self.cls_id = cls_id
+        self.camera2world = camera2world
+        self.utm_pos = self.to_utm()
 
     def to_tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,
@@ -48,3 +53,11 @@ class Detection(object):
         ret[:2] += ret[2:] / 2
         ret[2] /= ret[3]
         return ret
+
+    def to_utm(self):
+        utm_pos = self.camera2world.convert_bbox_tlbr_to_utm_coordinates(self.to_tlbr())
+        return utm_pos
+
+    def to_xyz_rel2cam(self):
+        xyz = self.camera2world.convert_bbox_tlbr_to_relative_to_camera_xyz(self.to_tlbr())
+        return xyz
