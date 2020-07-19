@@ -94,7 +94,7 @@ class Cam2World(object):
         xyz_rel2cam = np.array([self.convert_bbox_tlbr_to_relative_to_camera_xyz(bbox_tlbr)]).transpose() #(x, height, depth)
 
         # rotate camera relative to robot 12 O'clock and translate coordinates to IMU
-        xyz_rel2imu = self.R_cam @ xyz_rel2cam - self.cam_position_rel_to_imu
+        xyz_rel2imu = self.R_cam @ xyz_rel2cam + self.cam_position_rel_to_imu
 
         # rotate target xyz position relative to north (yaw angle) and add telemetry to get total utm pos
         """ utm_pos is [long, lat, height] = [x,z,y] """
@@ -115,7 +115,7 @@ class Cam2World(object):
         xyz_rel2imu = np.linalg.inv(self.R_yaw) @ (utm_pos - self.telemetry["utmpos"])
 
         # from xyz rel2imu and aligned to vehicle 12 O'clock, to xyz_rel2cam
-        xyz_rel2cam = np.linalg.inv(self.R_cam) @ (xyz_rel2imu + self.cam_position_rel_to_imu)
+        xyz_rel2cam = np.linalg.inv(self.R_cam) @ (xyz_rel2imu - self.cam_position_rel_to_imu)
 
         row_center, col_center = self.convert_relative_to_camera_xyz_to_bbox_center(xyz_rel2cam)
 
