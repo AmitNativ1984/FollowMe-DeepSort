@@ -1,5 +1,5 @@
 import numpy as np
-
+import torch
 from .deep.feature_extractor import Extractor
 from .sort.nn_matching import NearestNeighborDistanceMetric
 from .sort.preprocessing import non_max_suppression
@@ -24,7 +24,8 @@ class DeepSort(object):
 
     def update(self, camera2world, bbox_xywh, confidences, cls_ids, ori_img):
         self.height, self.width = ori_img.shape[:2]
-        # generate detections
+
+        # generate detections in Detection class
         features = self._get_features(bbox_xywh, ori_img)   # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
         detections = [Detection(camera2world, bbox_tlwh[i], conf, int(cls_ids[i]), features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
@@ -36,7 +37,6 @@ class DeepSort(object):
         detections = [detections[i] for i in indices]
 
         # update tracker
-        # todo: update cam2world with telemetry
         self.tracker.predict()  # predicting bbox position based on kf
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
@@ -46,9 +46,10 @@ class DeepSort(object):
             if not track.is_confirmed() or track.time_since_update > 1:
                 continue
             box = track.to_tlwh()
-            x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
+            x1, y1, x2, y2 = self._tlwh_to_xyxy(box)
             track_id = track.track_id
-            outputs.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
+            cls_id = track.cls_id
+            outputs.append(np.array([x1, y1, x2, y2, cls_id, track_id], dtype=np.int))
 
         if len(outputs) > 0:
             outputs = np.stack(outputs,axis=0)
@@ -68,7 +69,6 @@ class DeepSort(object):
         bbox_tlwh[:,0] = bbox_xywh[:,0] - bbox_xywh[:,2]/2.
         bbox_tlwh[:,1] = bbox_xywh[:,1] - bbox_xywh[:,3]/2.
         return bbox_tlwh
-
 
     def _xywh_to_xyxy(self, bbox_xywh):
         x,y,w,h = bbox_xywh

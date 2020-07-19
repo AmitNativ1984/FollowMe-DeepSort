@@ -36,6 +36,10 @@ class Tracker(object):
         kwargs = {'batch_size': args.batch_size, 'pin_memory': True}
         dataset= ProbotSensorsDataset(args)
         self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
+
+        self.cam2world = Cam2World(args.img_width, args.img_height,
+                              args.thetaX, args.target_height, camAngle=0, cam_pos=cfg.CAMERA2IMU_DIST)
+
         self.detector = build_detector(cfg, args, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
@@ -46,12 +50,7 @@ class Tracker(object):
 
     def run(self):
         VISUALIZE_DETECTIONS = True
-        target_cls = list(self.cls_dict.keys())
-        target_name = list(self.cls_dict.values())
-        cam2world = Cam2World(self.args.img_width, self.args.img_height,
-                              self.args.thetaX, args.target_height, camAngle=0, cam_pos=cfg.CAMERA2IMU_DIST)
 
-        new_traget=True
         new_traget_raw = True
         U = np.array([[0], [0], [0], [0]])
         map_projection_fig = plt.figure()
@@ -66,18 +65,17 @@ class Tracker(object):
 
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
             # update cam2world functions with new telemetry:
-            cam2world.digest_new_telemetry(sample["telemetry"])
+            self.cam2world.digest_new_telemetry(sample["telemetry"])
             ori_im = sample["image"].numpy().squeeze(0)
 
-            outputs, detections = self.DeepSort(sample, cam2world)
+            outputs, detections = self.DeepSort(sample, self.cam2world)
 
             # draw boxes for visualization
-
 
             # todo: this if just for "quick and dirt" version of Kalman filter"
             # kalman filter predictions on detection [0]
             for detection in detections:
-                target_utm_temp = cam2world.convert_bbox_tlbr_to_utm_coordinates(detection.to_tlbr())
+                target_utm_temp = self.cam2world.convert_bbox_tlbr_to_utm_coordinates(detection.to_tlbr())
                 # drawing...
                 if VISUALIZE_DETECTIONS:
                     ori_im = draw_boxes(ori_im, [detections[0].to_tlbr()], confidence=[detections[0].confidence],
@@ -97,7 +95,7 @@ class Tracker(object):
                 ax_map.scatter(np.array(x_statenew_raw)[0], np.array(x_statenew_raw)[1], marker='^', color='black', s=15, alpha=0.5)
                 target_utm_new = np.vstack((x_statenew_raw[:2], target_utm_temp[-1]))
                 # converting back to bbox from utm
-                bbox_row_center, bbox_col_center = cam2world.convert_utm_coordinates_to_bbox_center(target_utm_new)
+                bbox_row_center, bbox_col_center = self.cam2world.convert_utm_coordinates_to_bbox_center(target_utm_new)
 
                 bbox_xyxy_temp = np.array([detections[0].to_tlbr() for i in range(np.shape(detections)[0])])
                 bbox_xyxy_temp[:, 0::2] += bbox_col_center - np.mean([bbox_xyxy_temp[:, 0], bbox_xyxy_temp[:, 2]])
@@ -113,16 +111,15 @@ class Tracker(object):
                 identities = outputs[:, -1]
                 confidence = [detection.confidence for detection in detections]
                 utm_pos = [detection.to_utm() for detection in detections]
-                cls_names = [self.cls_dict[detection.cls_id] for detection in detections]
+                cls_names = [self.cls_dict[ind] for ind in outputs[:, -2]]
                 ori_im = draw_boxes(ori_im, bbox_xyxy, track_id=identities, confidence=confidence,
                                     target_xyz=utm_pos, cls_names=cls_names, color=[255, 0, 0])
                 self.bbox_xyxy = bbox_xyxy
                 self.identities = identities
 
                 for i, target in enumerate(outputs):
-                    id = target[-1]
-                    print('\t\t target [{}] \t ({},{},{},{})\t'
-                          .format(id, target[0], target[1], target[2], target[3]))
+                    print('\t\t track id: [{}] \t [{}] \t ({},{},{},{})\t'
+                          .format(target[-1], self.cls_dict[target[-2]], target[0], target[1], target[2], target[3]))
 
             if self.args.display:
                 cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
@@ -140,7 +137,6 @@ class Tracker(object):
     def DeepSort(self, sample, camera2world):
 
         im = sample["image"].numpy().squeeze(0)
-
         outputs = []
         detections = []
 
@@ -148,9 +144,7 @@ class Tracker(object):
         bbox_xywh, cls_conf, cls_ids = self.detector(im)  # get all detections from image
 
         if bbox_xywh[0] is not None:
-            # select person class
             mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
-
             bbox_xywh = bbox_xywh[0][mask]
             cls_conf = cls_conf[0][mask]
             cls_ids = cls_ids[0][mask]
