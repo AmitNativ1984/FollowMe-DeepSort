@@ -3,5 +3,10 @@ YOLOV3:
   WEIGHT: "detector/yolov3_ultralytics/weights/best_coco_probot_woods.pt"
   CLASS_NAMES: "detector/yolov3_ultralytics/data/coco.names"
 
-  SCORE_THRESH: 0.6
+  SCORE_THRESH: 0.4
   NMS_THRESH: 0.5
+
+CLS_DICT:
+  '0': 'person'
+  '2': 'car'
+  '7': 'car'
