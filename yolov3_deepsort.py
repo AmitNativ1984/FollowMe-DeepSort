@@ -49,15 +49,15 @@ class Tracker(object):
 
 
     def run(self):
-        VISUALIZE_DETECTIONS = True
+        VISUALIZE_DETECTIONS = False
 
         new_traget_raw = True
         U = np.array([[0], [0], [0], [0]])
-        map_projection_fig = plt.figure()
-        ax_map = map_projection_fig.add_subplot(111)
-        ax_map.set_aspect('equal', 'box')
-        ax_map.grid(True)
-        radar_fig, ax_polar, ax_carthesian = create_radar_plot()
+        # map_projection_fig = plt.figure()
+        # ax_map = map_projection_fig.add_subplot(111)
+        # ax_map.set_aspect('equal', 'box')
+        # ax_map.grid(True)
+        # radar_fig, ax_polar, ax_carthesian = create_radar_plot()
 
         for frame, sample in enumerate(self.data_loader):
             start = time.time()
@@ -71,40 +71,16 @@ class Tracker(object):
             outputs, detections = self.DeepSort(sample, self.cam2world)
 
             # draw boxes for visualization
-
-            # todo: this if just for "quick and dirt" version of Kalman filter"
             # kalman filter predictions on detection [0]
-            for detection in detections:
-                target_utm_temp = self.cam2world.convert_bbox_tlbr_to_utm_coordinates(detection.to_tlbr())
-                # drawing...
-                if VISUALIZE_DETECTIONS:
-                    ori_im = draw_boxes(ori_im, [detections[0].to_tlbr()], confidence=[detections[0].confidence],
-                                        track_id=[""],
-                                        target_xyz=[target_utm_temp],
-                                        cls_names=[self.cls_dict[int(detections[0].cls_id)]],
-                                        color=[255, 255, 0])
-                    ax_map.scatter(target_utm_temp[0], target_utm_temp[1], marker='^', color='g', s=15)
-
-                if new_traget_raw:
-                    kalman_xyz_raw = KalmanXYZ(timestamp=sample["telemetry"]["timestamp"][0],
-                                           x0=target_utm_temp)
-                    new_traget_raw = False
-
-                kalman_xyz_raw.predict(sample["telemetry"]["timestamp"][0], U)
-                x_statenew_raw = kalman_xyz_raw.update_by_measurment(target_utm_temp)
-                ax_map.scatter(np.array(x_statenew_raw)[0], np.array(x_statenew_raw)[1], marker='^', color='black', s=15, alpha=0.5)
-                target_utm_new = np.vstack((x_statenew_raw[:2], target_utm_temp[-1]))
-                # converting back to bbox from utm
-                bbox_row_center, bbox_col_center = self.cam2world.convert_utm_coordinates_to_bbox_center(target_utm_new)
-
-                bbox_xyxy_temp = np.array([detections[0].to_tlbr() for i in range(np.shape(detections)[0])])
-                bbox_xyxy_temp[:, 0::2] += bbox_col_center - np.mean([bbox_xyxy_temp[:, 0], bbox_xyxy_temp[:, 2]])
-                bbox_xyxy_temp[:, 1::2] += bbox_row_center - np.mean([bbox_xyxy_temp[:, 1], bbox_xyxy_temp[:, 3]])
-
-                ori_im = draw_boxes(ori_im, bbox_xyxy_temp, track_id=[""], confidence= [detections[0].confidence],
-                                    target_xyz=[target_utm_temp], cls_names=[self.cls_dict[int(detections[0].cls_id)]],
-                                    color=[0, 50, 255])
-                break
+            if VISUALIZE_DETECTIONS:
+                ori_im = draw_boxes(ori_im,
+                                    [detection.to_tlbr() for detection in detections],
+                                    confidence=[detection.confidence for detection in detections],
+                                    track_id=[""] * np.shape(detections)[0],
+                                    target_xyz=[detection.to_utm() for detection in detections],
+                                    cls_names=[self.cls_dict[int(detection.cls_id)] for detection in detections],
+                                    color=[255, 255, 0])
+                # ax_map.scatter(target_utm_temp[0], target_utm_temp[1], marker='^', color='g', s=15)
 
             if len(outputs) > 0:
                 bbox_xyxy = outputs[:, :4]
@@ -112,10 +88,12 @@ class Tracker(object):
                 confidence = [detection.confidence for detection in detections]
                 utm_pos = [detection.to_utm() for detection in detections]
                 cls_names = [self.cls_dict[ind] for ind in outputs[:, -2]]
-                ori_im = draw_boxes(ori_im, bbox_xyxy, track_id=identities, confidence=confidence,
+
+                ori_im = draw_boxes(ori_im,
+                                    bbox_xyxy,
+                                    confidence=confidence,
+                                    track_id=identities,
                                     target_xyz=utm_pos, cls_names=cls_names, color=[255, 0, 0])
-                self.bbox_xyxy = bbox_xyxy
-                self.identities = identities
 
                 for i, target in enumerate(outputs):
                     print('\t\t track id: [{}] \t [{}] \t ({},{},{},{})\t'
@@ -124,9 +102,9 @@ class Tracker(object):
             if self.args.display:
                 cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
                 key = cv2.waitKey(1)
-                radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
-                                                                       ax_carthesian=ax_carthesian)
-                ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1], marker='o', color='b', alpha=0.5)
+                # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
+                #                                                        ax_carthesian=ax_carthesian)
+                # ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1], marker='o', color='b', alpha=0.5)
 
             plt.pause(0.1)
 
