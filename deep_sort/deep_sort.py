@@ -38,7 +38,7 @@ class DeepSort(object):
 
         # update tracker
         self.tracker.predict()  # predicting bbox position based on kf
-        self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
+        self.tracker.update(detections)     # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
         outputs = []
