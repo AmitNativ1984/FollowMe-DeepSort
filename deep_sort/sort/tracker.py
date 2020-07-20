@@ -2,10 +2,16 @@
 from __future__ import absolute_import
 import numpy as np
 from . import kalman_filter
+from . import kalman_filter_xyz
 from . import linear_assignment
 from . import iou_matching
-from .track import Track
 
+UTM_TRACKING = True
+
+if UTM_TRACKING:
+    from .track_xyz import Track
+else:
+    from .track import Track
 
 class Tracker:
     """
@@ -44,16 +50,20 @@ class Tracker:
         self.n_init = n_init
 
         self.kf = kalman_filter.KalmanFilter()
+        self.kf_utm = kalman_filter_xyz.KalmanXYZ()
         self.tracks = []
         self._next_id = 1
 
-    def predict(self):
+    def predict(self, telemetry=None):
         """Propagate track state distributions one time step forward.
 
         This function should be called once every time step, before `update`.
         """
         for track in self.tracks:
-            track.predict(self.kf)
+            if UTM_TRACKING:
+                track.predict(self.kf_utm, telemetry)
+            else:
+                track.predict(self.kf)
 
     def update(self, detections):
         """Perform measurement update and track management.
@@ -70,7 +80,10 @@ class Tracker:
 
         # Update track set.
         for track_idx, detection_idx in matches:    # update tracks with matched detections
-            self.tracks[track_idx].update(self.kf, detections[detection_idx])
+            if UTM_TRACKING:
+                self.tracks[track_idx].update(self.kf_utm, detections[detection_idx])
+            else:
+                self.tracks[track_idx].update(self.kf, detections[detection_idx])
         for track_idx in unmatched_tracks:          # update as track with no detections. add +1 to missed frames. delete if necessary
             self.tracks[track_idx].mark_missed()
         for detection_idx in unmatched_detections:  # if detections are not associated with any track, initiate track and start counting frames
@@ -95,9 +108,15 @@ class Tracker:
             features = np.array([dets[i].feature for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
             cost_matrix = self.metric.distance(features, targets)
-            cost_matrix = linear_assignment.gate_cost_matrix(
-                self.kf, cost_matrix, tracks, dets, track_indices,
-                detection_indices)
+
+            if UTM_TRACKING:
+                cost_matrix = linear_assignment.gate_cost_matrix(
+                    self.kf_utm, cost_matrix, tracks, dets, track_indices,
+                    detection_indices)
+            else:
+                cost_matrix = linear_assignment.gate_cost_matrix(
+                    self.kf, cost_matrix, tracks, dets, track_indices,
+                    detection_indices)
 
             return cost_matrix
 
@@ -130,7 +149,11 @@ class Tracker:
         return matches, unmatched_tracks, unmatched_detections
 
     def _initiate_track(self, detection):
-        mean, covariance = self.kf.initiate(detection.to_xyah())
+        if UTM_TRACKING:
+            mean, covariance = self.kf_utm.initiate(detection.timestamp[0], detection.to_utm())
+        else:
+            mean, covariance = self.kf.initiate(detection.to_xyah())
+
         self.tracks.append(Track(
             mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
             detection=detection))

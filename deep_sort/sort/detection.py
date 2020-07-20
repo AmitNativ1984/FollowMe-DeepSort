@@ -36,6 +36,7 @@ class Detection(object):
         self.cls_id = cls_id
         self.camera2world = camera2world
         self.utm_pos = self.to_utm()
+        self.timestamp = camera2world.telemetry["timestamp"]
 
     def to_tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,

@@ -27,7 +27,7 @@ def computeFmatrix(deltaT):
 class KalmanXYZ(object):
     """ kalman filter for linear measurements """
 
-    def __init__(self, timestamp, x0):
+    def __init__(self):
         sigmaPos = 1
         sigmaVel = 100
 
@@ -45,13 +45,23 @@ class KalmanXYZ(object):
         self.R = np.array([[0.5,        0.0],
                            [0.0,        0.5]])
 
+    def initiate(self, timestamp, x0):
         self.X_state_current = np.vstack((x0[:2], 0, 0))
         self.timestamp = timestamp
 
-    def predict(self, new_timestamp, U):
+        return self.X_state_current, self.P
+
+    def predict(self, new_timestamp, U=None):
         """
         predict state according to the physical model
         """
+
+        if U is None:
+            U = np.array([[0],
+                          [0],
+                          [0],
+                          [0]])
+
         deltaT = (new_timestamp - self.timestamp) / 1E3
         self.timestamp = new_timestamp
 
