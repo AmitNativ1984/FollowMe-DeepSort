@@ -62,3 +62,11 @@ class Detection(object):
     def to_xyz_rel2cam(self):
         xyz = self.camera2world.convert_bbox_tlbr_to_relative_to_camera_xyz(self.to_tlbr())
         return xyz
+
+    def project_utm_to_bbox_tlwh(self, utm_pos):
+        row, col = self.camera2world.convert_utm_coordinates_to_bbox_center(utm_pos)
+        bbox_tlwh = self.tlwh.copy()
+        bbox_tlwh[0] = col - bbox_tlwh[2]/2
+        bbox_tlwh[1] = row - bbox_tlwh[3]/2
+
+        return bbox_tlwh

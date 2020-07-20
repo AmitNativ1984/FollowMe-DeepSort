@@ -3,15 +3,18 @@ from __future__ import absolute_import
 import numpy as np
 from . import kalman_filter
 from . import kalman_filter_xyz
-from . import linear_assignment
-from . import iou_matching
 
 UTM_TRACKING = True
 
 if UTM_TRACKING:
     from .track_xyz import Track
+    from . import utm_iou_matching as iou_matching
+    from . import utm_linear_assignment
+
 else:
     from .track import Track
+    from . import iou_matching
+    from . import linear_assignment
 
 class Tracker:
     """
@@ -54,14 +57,14 @@ class Tracker:
         self.tracks = []
         self._next_id = 1
 
-    def predict(self, telemetry=None):
+    def predict(self, camera2world=None):
         """Propagate track state distributions one time step forward.
 
         This function should be called once every time step, before `update`.
         """
         for track in self.tracks:
             if UTM_TRACKING:
-                track.predict(self.kf_utm, telemetry)
+                track.predict(self.kf_utm, camera2world)
             else:
                 track.predict(self.kf)
 
@@ -110,7 +113,7 @@ class Tracker:
             cost_matrix = self.metric.distance(features, targets)
 
             if UTM_TRACKING:
-                cost_matrix = linear_assignment.gate_cost_matrix(
+                cost_matrix = utm_linear_assignment.gate_cost_matrix(
                     self.kf_utm, cost_matrix, tracks, dets, track_indices,
                     detection_indices)
             else:
@@ -127,10 +130,16 @@ class Tracker:
             i for i, t in enumerate(self.tracks) if not t.is_confirmed()]
 
         # Associate detections with known track based on deep features and rid
-        matches_a, unmatched_tracks_a, unmatched_detections = \
-            linear_assignment.matching_cascade(
-                gated_metric, self.metric.matching_threshold, self.max_age,
-                self.tracks, detections, confirmed_tracks)
+        if UTM_TRACKING:
+            matches_a, unmatched_tracks_a, unmatched_detections = \
+                utm_linear_assignment.matching_cascade(
+                    gated_metric, self.metric.matching_threshold, self.max_age,
+                    self.tracks, detections, confirmed_tracks)
+        else:
+            matches_a, unmatched_tracks_a, unmatched_detections = \
+                linear_assignment.matching_cascade(
+                    gated_metric, self.metric.matching_threshold, self.max_age,
+                    self.tracks, detections, confirmed_tracks)
 
         # Associate remaining tracks together with unconfirmed tracks using IOU.
         iou_track_candidates = unconfirmed_tracks + [
@@ -139,10 +148,17 @@ class Tracker:
         unmatched_tracks_a = [
             k for k in unmatched_tracks_a if
             self.tracks[k].time_since_update != 1]
-        matches_b, unmatched_tracks_b, unmatched_detections = \
-            linear_assignment.min_cost_matching(
-                iou_matching.iou_cost, self.max_iou_distance, self.tracks,
-                detections, iou_track_candidates, unmatched_detections)
+
+        if UTM_TRACKING:
+            matches_b, unmatched_tracks_b, unmatched_detections = \
+                utm_linear_assignment.min_cost_matching(
+                    iou_matching.iou_cost, self.max_iou_distance, self.tracks,
+                    detections, iou_track_candidates, unmatched_detections)
+        else:
+            matches_b, unmatched_tracks_b, unmatched_detections = \
+                linear_assignment.min_cost_matching(
+                    iou_matching.iou_cost, self.max_iou_distance, self.tracks,
+                    detections, iou_track_candidates, unmatched_detections)
 
         matches = matches_a + matches_b
         unmatched_tracks = list(set(unmatched_tracks_a + unmatched_tracks_b))

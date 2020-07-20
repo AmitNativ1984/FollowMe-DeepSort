@@ -1,4 +1,5 @@
 # vim: expandtab:ts=4:sw=4
+import numpy as np
 
 
 class TrackState:
@@ -80,8 +81,9 @@ class Track:
         self._n_init = n_init
         self._max_age = max_age
         self.cls_id = detection.cls_id
+        self.covariance = detection.confidence
         self.utm_pos = detection.to_utm()
-        self.detection_conf = detection.confidence
+        self.confidence = detection.confidence
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -112,7 +114,7 @@ class Track:
         ret[2:] = ret[:2] + ret[2:]
         return ret
 
-    def predict(self, kf, telemetry):
+    def predict(self, kf, camera2world):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
@@ -122,7 +124,7 @@ class Track:
             The Kalman filter.
 
         """
-        self.mean, self.covariance = kf.predict(telemetry["timestamp"][0])
+        self.mean, self.covariance = kf.predict(camera2world.telemetry["timestamp"][0])
         self.age += 1
         self.time_since_update += 1
 
@@ -138,11 +140,13 @@ class Track:
             The associated detection.
 
         """
-        self.mean, self.covariance = kf.update(
-            self.mean, self.covariance, detection.to_xyah())
+        self.mean, self.covariance = kf.update_by_measurment(detection.to_utm())
         self.features.append(detection.feature)
         self.confidence = detection.confidence
         self.cls_id = detection.cls_id
+        # todo: handle last coordinate in utm:..->
+        self.utm_pos = np.vstack((self.mean[:2], detection.to_utm()[-1]))
+        self.bbox_tlwh = detection.project_utm_to_bbox_tlwh(self.utm_pos)
 
         self.hits += 1
         self.time_since_update = 0

@@ -68,7 +68,7 @@ class Tracker(object):
             self.cam2world.digest_new_telemetry(sample["telemetry"])
             ori_im = sample["image"].numpy().squeeze(0)
 
-            outputs, detections = self.DeepSort(sample, self.cam2world)
+            tracks, detections = self.DeepSort(sample, self.cam2world)
 
             # draw boxes for visualization
             # kalman filter predictions on detection [0]
@@ -82,29 +82,30 @@ class Tracker(object):
                                     color=[255, 255, 0])
                 # ax_map.scatter(target_utm_temp[0], target_utm_temp[1], marker='^', color='g', s=15)
 
-            for i, target in enumerate(outputs):
-                print('\t\t track id: [{}] \t [{}] \t ({},{},{},{})\t'
-                      .format(target[-1], self.cls_dict[target[-2]], target[0], target[1], target[2], target[3]))
+            # for i, target in enumerate(outputs):
+            #     print('\t\t track id: [{}] \t [{}] \t ({},{},{},{})\t'
+            #           .format(target[-1], self.cls_dict[target[-2]], target[0], target[1], target[2], target[3]))
 
             if self.args.display:
-                if len(outputs) > 0:
-                    bbox_xyxy = outputs[:, :4]
-                    identities = outputs[:, -1]
-                    # confidence = [detection.confidence for detection in detections]
-                    # utm_pos = [detection.to_utm() for detection in detections]
-                    cls_names = [self.cls_dict[ind] for ind in outputs[:, -2]]
+                if len(tracks) > 0:
+                    confidence = [track.confidence for track in tracks]
+                    track_id = [track.track_id for track in tracks]
+                    cls_names = [self.cls_dict[int(track.cls_id)] for track in tracks]
+                    utm_pos = [track.utm_pos for track in tracks]
 
-                    try:
-                        ori_im = draw_boxes(ori_im,
-                                            bbox_xyxy,
-                                            # confidence=confidence,
-                                            track_id=identities,
-                                            # target_xyz=utm_pos,
-                                            cls_names=cls_names,
-                                            color=[255, 0, 0])
+                    bbox_tlwh = np.array([track.bbox_tlwh for track in tracks])
+                    bbox_tlbr = bbox_tlwh
+                    bbox_tlbr[:, 2] = bbox_tlwh[:, 0] + bbox_tlwh[:, 2]
+                    bbox_tlbr[:, 3] = bbox_tlwh[:, 1] + bbox_tlwh[:, 3]
 
-                    except Exception as e:
-                        print(e)
+                    ori_im = draw_boxes(ori_im,
+                                        bbox_tlbr,
+                                        confidence=confidence,
+                                        track_id=track_id,
+                                        target_xyz=utm_pos,
+                                        cls_names=cls_names,
+                                        color=[255, 0, 0])
+
 
                 cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
                 key = cv2.waitKey(1)
@@ -121,7 +122,7 @@ class Tracker(object):
     def DeepSort(self, sample, camera2world):
 
         im = sample["image"].numpy().squeeze(0)
-        outputs = []
+        tracks = []
         detections = []
 
         # do detection
@@ -134,9 +135,9 @@ class Tracker(object):
             cls_ids = cls_ids[0][mask]
 
             # run deepsort algorithm to match detections to tracks
-            outputs, detections = self.deepsort.update(camera2world, bbox_xywh, cls_conf, cls_ids, im)
+            tracks, detections = self.deepsort.update(camera2world, bbox_xywh, cls_conf, cls_ids, im)
 
-        return outputs, detections
+        return tracks, detections
 
 def parse_args():
     parser = argparse.ArgumentParser()
