@@ -63,8 +63,8 @@ class Track:
 
     """
 
-    def __init__(self, mean, covariance, track_id, n_init, max_age,
-                 feature=None, cls_id=[]):
+    def __init__(self, mean=None, covariance=None, track_id=None, n_init=None, max_age=None, detection=None):
+
         self.mean = mean
         self.covariance = covariance
         self.track_id = track_id
@@ -74,12 +74,14 @@ class Track:
 
         self.state = TrackState.Tentative
         self.features = []
-        if feature is not None:
-            self.features.append(feature)
+        if detection.feature is not None:
+            self.features.append(detection.feature)
 
         self._n_init = n_init
         self._max_age = max_age
-        self.cls_id = cls_id
+        self.cls_id = detection.cls_id
+        self.utm_pos = detection.to_utm()
+        self.detection_conf = detection.confidence
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
