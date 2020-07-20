@@ -49,7 +49,7 @@ class Tracker(object):
 
 
     def run(self):
-        VISUALIZE_DETECTIONS = False
+        VISUALIZE_DETECTIONS = True
 
         new_traget_raw = True
         U = np.array([[0], [0], [0], [0]])
@@ -87,12 +87,6 @@ class Tracker(object):
                       .format(target[-1], self.cls_dict[target[-2]], target[0], target[1], target[2], target[3]))
 
             if self.args.display:
-                cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
-                key = cv2.waitKey(1)
-                # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
-                #                                                        ax_carthesian=ax_carthesian)
-                # ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1], marker='o', color='b', alpha=0.5)
-
                 if len(outputs) > 0:
                     bbox_xyxy = outputs[:, :4]
                     identities = outputs[:, -1]
@@ -105,6 +99,12 @@ class Tracker(object):
                                         confidence=confidence,
                                         track_id=identities,
                                         target_xyz=utm_pos, cls_names=cls_names, color=[255, 0, 0])
+
+                cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
+                key = cv2.waitKey(1)
+                # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
+                #                                                        ax_carthesian=ax_carthesian)
+                # ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1], marker='o', color='b', alpha=0.5)
 
             plt.pause(0.1)
 
