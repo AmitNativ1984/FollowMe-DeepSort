@@ -70,8 +70,7 @@ class Tracker:
 
         # Update track set.
         for track_idx, detection_idx in matches:    # update tracks with matched detections
-            self.tracks[track_idx].update(
-                self.kf, detections[detection_idx])
+            self.tracks[track_idx].update(self.kf, detections[detection_idx])
         for track_idx in unmatched_tracks:          # update as track with no detections. add +1 to missed frames. delete if necessary
             self.tracks[track_idx].mark_missed()
         for detection_idx in unmatched_detections:  # if detections are not associated with any track, initiate track and start counting frames
@@ -133,6 +132,7 @@ class Tracker:
     def _initiate_track(self, detection):
         mean, covariance = self.kf.initiate(detection.to_xyah())
         self.tracks.append(Track(
-            mean, covariance, self._next_id, self.n_init, self.max_age,
-            detection.feature, detection.cls_id))
+            mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
+            detection=detection))
+
         self._next_id += 1
