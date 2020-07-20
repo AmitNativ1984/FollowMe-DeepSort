@@ -90,15 +90,21 @@ class Tracker(object):
                 if len(outputs) > 0:
                     bbox_xyxy = outputs[:, :4]
                     identities = outputs[:, -1]
-                    confidence = [detection.confidence for detection in detections]
-                    utm_pos = [detection.to_utm() for detection in detections]
+                    # confidence = [detection.confidence for detection in detections]
+                    # utm_pos = [detection.to_utm() for detection in detections]
                     cls_names = [self.cls_dict[ind] for ind in outputs[:, -2]]
 
-                    ori_im = draw_boxes(ori_im,
-                                        bbox_xyxy,
-                                        confidence=confidence,
-                                        track_id=identities,
-                                        target_xyz=utm_pos, cls_names=cls_names, color=[255, 0, 0])
+                    try:
+                        ori_im = draw_boxes(ori_im,
+                                            bbox_xyxy,
+                                            # confidence=confidence,
+                                            track_id=identities,
+                                            # target_xyz=utm_pos,
+                                            cls_names=cls_names,
+                                            color=[255, 0, 0])
+
+                    except Exception as e:
+                        print(e)
 
                 cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
                 key = cv2.waitKey(1)

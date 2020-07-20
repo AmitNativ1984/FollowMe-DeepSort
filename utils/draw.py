@@ -41,7 +41,7 @@ def draw_boxes(img, bbox, confidence=None, track_id=None, target_xyz=None, cls_n
         if cls_names:
             cv2.putText(img, '{}'.format(cls_names[i]), (x1, y2 + 4 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
 
-        if len(target_xyz) > 0:
+        if target_xyz:# is not None:
             utm_str = "(" + ", ".join(
                 [str(coord) for coord in list(np.round(target_xyz[i].transpose().squeeze(), 3))]) + ")"
             cv2.putText(img, utm_str,
