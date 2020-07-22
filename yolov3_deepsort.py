@@ -61,7 +61,6 @@ class Tracker(object):
 
         for frame, sample in enumerate(self.data_loader):
             start = time.time()
-            print('frame: {}'.format(frame))
 
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
             # update cam2world functions with new telemetry:
@@ -69,7 +68,8 @@ class Tracker(object):
             ori_im = sample["image"].numpy().squeeze(0)
 
             tracks, detections = self.DeepSort(sample, self.cam2world)
-
+            end = time.time()
+            print('frame: {}, {}[msec]'.format(frame, (end-start)*1E3))
             # draw boxes for visualization
             # kalman filter predictions on detection [0]
             if VISUALIZE_DETECTIONS:
@@ -144,7 +144,7 @@ def parse_args():
     parser.add_argument("--data", type=str, help='folder containing all recorded data')
     parser.add_argument("--batch-size", type=int, default=1, help='folder containing all recorded data')
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
-    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
+    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort_utm.yaml")
     parser.add_argument("--config_sensors", type=str, default="./configs/sensors.yaml")
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)

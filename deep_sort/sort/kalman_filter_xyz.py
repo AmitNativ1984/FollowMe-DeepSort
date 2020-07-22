@@ -29,22 +29,26 @@ class KalmanXYZ(object):
     """ kalman filter for linear measurements """
 
     def __init__(self):
-        sigmaPos = 1
-        sigmaVel = 100
+        sigmaPosX = 1
+        sigmaPosY = 2
+        sigmaVelX = 10
+        sigmaVelY = 20
 
 
-        self.P = np.array([[sigmaPos,      0.,      0.,      0.],
-                           [0.,       sigmaPos,     0.,      0.],
-                           [0.,       0.,      sigmaVel,    0.],
-                           [0.,       0.,      0.,    sigmaVel]])
+        self.P = np.array([[sigmaPosX,      0.,      0.,      0.],
+                           [0.,       sigmaPosY,     0.,      0.],
+                           [0.,       0.,      sigmaVelX,    0.],
+                           [0.,       0.,      0.,    sigmaVelY]])
 
         # projection from sensor to state space
         self.H = np.array([[1.,     0.,      0.,      0.],
                            [0.,     1.,      0.,      0.]])
 
         # image detection noise (in meters)
-        self.R = np.array([[0.5,        0.0],
-                           [0.0,        0.5]])
+        sensor_acc_X = 0.1
+        sensor_acc_Y = 1
+        self.R = np.array([[sensor_acc_X,        0.0],
+                           [0.0,        sensor_acc_Y]])
 
     def initiate(self, timestamp, x0):
         self.X_state_current = np.vstack((x0[:2], 0, 0))
