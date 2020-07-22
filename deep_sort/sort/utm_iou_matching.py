@@ -61,6 +61,6 @@ def iou_cost(tracks, detections, track_indices=None,
             continue
 
         utm_pos = tracks[track_idx].mean
-        candidates = np.asarray([detections[i].to_utm() for i in detection_indices])
+        candidates = np.asarray([detections[i].to_utm() for i in detection_indices]).squeeze(-1)
         cost_matrix[row, :] = utm_dist(utm_pos, candidates)
     return cost_matrix

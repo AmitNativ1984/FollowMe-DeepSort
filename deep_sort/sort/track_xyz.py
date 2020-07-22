@@ -64,7 +64,7 @@ class Track:
 
     """
 
-    def __init__(self, mean=None, covariance=None, track_id=None, n_init=None, max_age=None, detection=None):
+    def __init__(self, mean=None, covariance=None, track_id=None, n_init=None, max_age=None, detection=None, kf=None):
 
         self.mean = mean
         self.covariance = covariance
@@ -84,6 +84,7 @@ class Track:
         self.covariance = detection.confidence
         self.utm_pos = detection.to_utm()
         self.confidence = detection.confidence
+        self.kf_utm = kf    # kalman filter
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -114,7 +115,7 @@ class Track:
         ret[2:] = ret[:2] + ret[2:]
         return ret
 
-    def predict(self, kf, camera2world):
+    def predict(self, camera2world):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
@@ -124,11 +125,11 @@ class Track:
             The Kalman filter.
 
         """
-        self.mean, self.covariance = kf.predict(camera2world.telemetry["timestamp"][0])
+        self.mean, self.covariance = self.kf_utm.predict(camera2world.telemetry["timestamp"][0])
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, kf, detection):
+    def update(self, detection):
         """Perform Kalman filter measurement update step and update the feature
         cache.
 
@@ -140,7 +141,7 @@ class Track:
             The associated detection.
 
         """
-        self.mean, self.covariance = kf.update_by_measurment(detection.to_utm())
+        self.mean, self.covariance = self.kf_utm.update_by_measurment(detection.to_utm())
         self.features.append(detection.feature)
         self.confidence = detection.confidence
         self.cls_id = detection.cls_id

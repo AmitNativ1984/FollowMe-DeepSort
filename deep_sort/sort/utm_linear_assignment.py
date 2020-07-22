@@ -144,14 +144,14 @@ def matching_cascade(
 
 
 def gate_cost_matrix(
-        kf, cost_matrix, tracks, detections, track_indices, detection_indices,
+        cost_matrix, tracks, detections, track_indices, detection_indices,
         gated_cost=INFTY_COST, only_position=False):
     """Invalidate infeasible entries in cost matrix based on the state
     distributions obtained by Kalman filtering.
 
     Parameters
     ----------
-    kf : The Kalman filter.
+    (*)kf : The Kalman filter.
     cost_matrix : ndarray
         The NxM dimensional cost matrix, where N is the number of track indices
         and M is the number of detection indices, such that entry (i, j) is the
@@ -183,10 +183,10 @@ def gate_cost_matrix(
     gating_dim = 2#2 if only_position else 4
     gating_threshold = kalman_filter.chi2inv95[gating_dim]
     measurements = np.asarray(
-        [detections[i].to_utm() for i in detection_indices]).squeeze(0)
+        [detections[i].to_utm() for i in detection_indices]).squeeze(-1).transpose()
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
-        gating_distance = kf.gating_distance(
+        gating_distance = track.kf_utm.gating_distance(
             track.mean, track.covariance, measurements, only_position)
         cost_matrix[row, gating_distance > gating_threshold] = gated_cost
     return cost_matrix

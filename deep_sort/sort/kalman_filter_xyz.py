@@ -128,7 +128,7 @@ class KalmanXYZ(object):
         """
         # mean, covariance = self.project(mean, covariance)
         if only_position:
-            mean, covariance = mean[:2], covariance[:2, :2]
+            mean, covariance = self.mean[:2], self.covariance[:2, :2]
             measurements = measurements[:, :2]
 
         cholesky_factor = np.linalg.cholesky(covariance[:2, :2])

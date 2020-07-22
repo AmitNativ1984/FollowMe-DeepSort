@@ -53,7 +53,7 @@ class Tracker:
         self.n_init = n_init
 
         self.kf = kalman_filter.KalmanFilter()
-        self.kf_utm = kalman_filter_xyz.KalmanXYZ()
+        self.kf_utm = kalman_filter_xyz.KalmanXYZ
         self.tracks = []
         self._next_id = 1
 
@@ -64,7 +64,7 @@ class Tracker:
         """
         for track in self.tracks:
             if UTM_TRACKING:
-                track.predict(self.kf_utm, camera2world)
+                track.predict(camera2world)
             else:
                 track.predict(self.kf)
 
@@ -84,7 +84,7 @@ class Tracker:
         # Update track set.
         for track_idx, detection_idx in matches:    # update tracks with matched detections
             if UTM_TRACKING:
-                self.tracks[track_idx].update(self.kf_utm, detections[detection_idx])
+                self.tracks[track_idx].update(detections[detection_idx])
             else:
                 self.tracks[track_idx].update(self.kf, detections[detection_idx])
         for track_idx in unmatched_tracks:          # update as track with no detections. add +1 to missed frames. delete if necessary
@@ -114,7 +114,7 @@ class Tracker:
 
             if UTM_TRACKING:
                 cost_matrix = utm_linear_assignment.gate_cost_matrix(
-                    self.kf_utm, cost_matrix, tracks, dets, track_indices,
+                    cost_matrix, tracks, dets, track_indices,
                     detection_indices)
             else:
                 cost_matrix = linear_assignment.gate_cost_matrix(
@@ -149,6 +149,7 @@ class Tracker:
             k for k in unmatched_tracks_a if
             self.tracks[k].time_since_update != 1]
 
+        # Associate unmatched tracks and unmatched detections using IoU
         if UTM_TRACKING:
             matches_b, unmatched_tracks_b, unmatched_detections = \
                 utm_linear_assignment.min_cost_matching(
@@ -166,12 +167,16 @@ class Tracker:
 
     def _initiate_track(self, detection):
         if UTM_TRACKING:
-            mean, covariance = self.kf_utm.initiate(detection.timestamp[0], detection.to_utm())
+            new_kf = kalman_filter_xyz.KalmanXYZ()
+            mean, covariance = new_kf.initiate(detection.timestamp[0], detection.to_utm())
+            self.tracks.append(Track(
+                kf=new_kf, mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
+                detection=detection))
         else:
             mean, covariance = self.kf.initiate(detection.to_xyah())
 
-        self.tracks.append(Track(
-            mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
-            detection=detection))
+            self.tracks.append(Track(
+                mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
+                detection=detection))
 
         self._next_id += 1
