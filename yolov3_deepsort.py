@@ -60,7 +60,7 @@ class Tracker(object):
         # radar_fig, ax_polar, ax_carthesian = create_radar_plot()
 
         for frame, sample in enumerate(self.data_loader):
-            start = time.time()
+            start_time = time.time()
 
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
             # update cam2world functions with new telemetry:
@@ -68,8 +68,8 @@ class Tracker(object):
             ori_im = sample["image"].numpy().squeeze(0)
 
             tracks, detections = self.DeepSort(sample, self.cam2world)
-            end = time.time()
-            print('frame: {}, {}[msec]'.format(frame, (end-start)*1E3))
+            tracking_time = time.time()
+
             # draw boxes for visualization
             # kalman filter predictions on detection [0]
             if VISUALIZE_DETECTIONS:
@@ -113,6 +113,8 @@ class Tracker(object):
                 #                                                        ax_carthesian=ax_carthesian)
                 # ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1], marker='o', color='b', alpha=0.5)
 
+                end_time = time.time()
+                print('frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(frame, (end_time - start_time) * 1E3, (tracking_time-start_time) * 1E3, (end_time - tracking_time) * 1E3))
             plt.pause(0.1)
 
             if self.args.save_path:
@@ -128,7 +130,8 @@ class Tracker(object):
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)  # get all detections from image
 
-        if bbox_xywh[0] is not None:
+        # if bbox_xywh[0] is not None:
+        if bbox_xywh[0].shape[0] > 0:
             mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
             bbox_xywh = bbox_xywh[0][mask]
             cls_conf = cls_conf[0][mask]

@@ -52,20 +52,26 @@ def min_cost_matching(
 
     if len(detection_indices) == 0 or len(track_indices) == 0:
         return [], track_indices, detection_indices  # Nothing to match.
-    # associating detections with tracks based on features
+    # gated cost matrix based on re-id features / iou itersection (distance in utm)
     cost_matrix = distance_metric(
         tracks, detections, track_indices, detection_indices)
+    # thresholding cost matrix - detection can be associated only if the distance is less than reid max distance
+    #                            or less than max iou distance
     cost_matrix[cost_matrix > max_distance] = max_distance + 1e-5
 
+    # hungraian algorithm for assignening detections and tracks based on gated re-id features/iou_distance
     row_indices, col_indices = linear_assignment(cost_matrix)
 
     matches, unmatched_tracks, unmatched_detections = [], [], []
+    # finding unmatched detections:
     for col, detection_idx in enumerate(detection_indices):
         if col not in col_indices:
             unmatched_detections.append(detection_idx)
+    # finding unmatched tracks:
     for row, track_idx in enumerate(track_indices):
         if row not in row_indices:
             unmatched_tracks.append(track_idx)
+    # verifying matches are valid based on threshold
     for row, col in zip(row_indices, col_indices):
         track_idx = track_indices[row]
         detection_idx = detection_indices[col]
@@ -124,9 +130,10 @@ def matching_cascade(
     unmatched_detections = detection_indices
     matches = []
     for level in range(cascade_depth):  # comparing with prev frames (up to the num given as input param)
-        if len(unmatched_detections) == 0:  # No detections left
+        if len(unmatched_detections) == 0:  # No detections left or all detections have already been associated --> finish
             break
 
+        # collect all tracks that have not been updated in the past "level" frames
         track_indices_l = [
             k for k in track_indices
             if tracks[k].time_since_update == 1 + level
@@ -134,6 +141,7 @@ def matching_cascade(
         if len(track_indices_l) == 0:  # Nothing to match at this level
             continue
 
+        # run min cost matching based on Re-id on any left detections and previous tracks in current cascade depth
         matches_l, _, unmatched_detections = \
             min_cost_matching(
                 distance_metric, max_distance, tracks, detections,
@@ -181,12 +189,15 @@ def gate_cost_matrix(
 
     """
     gating_dim = 2#2 if only_position else 4
-    gating_threshold = kalman_filter.chi2inv95[gating_dim]
+    gating_threshold = tracks[0].kf_utm.chi2inv95[gating_dim]
     measurements = np.asarray(
         [detections[i].to_utm() for i in detection_indices]).squeeze(-1).transpose()
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
-        gating_distance = track.kf_utm.gating_distance(
+        # print(track.covariance)
+        squared_maha = track.kf_utm.gating_distance(
             track.mean, track.covariance, measurements, only_position)
-        cost_matrix[row, gating_distance > gating_threshold] = gated_cost
+        cost_matrix[row, squared_maha > gating_threshold] = gated_cost
+        metric_utm_dist = np.sqrt(np.sum((track.mean[:2] - measurements[:2])**2, axis=0))
+        cost_matrix[row, metric_utm_dist > 2] = gated_cost
     return cost_matrix

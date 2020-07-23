@@ -1,6 +1,8 @@
 import numpy as np
 import scipy
 
+
+
 def computeCovMatrix(deltaT, sigma_aX, sigma_aY):
 
     G = np.array([[deltaT ** 2 / 2.,                 0.],
@@ -29,11 +31,27 @@ class KalmanXYZ(object):
     """ kalman filter for linear measurements """
 
     def __init__(self):
-        sigmaPosX = 1
-        sigmaPosY = 2
-        sigmaVelX = 10
-        sigmaVelY = 20
+        """
+                Table for the 0.95 quantile of the chi-square distribution with N degrees of
+                freedom (contains values for N=1, ..., 9). Taken from MATLAB/Octave's chi2inv
+                function and used as Mahalanobis gating threshold.
+                """
+        self.chi2inv95 = {
+            1: 3.8415,
+            2: 5.9915,
+            3: 7.8147,
+            4: 9.4877,
+            5: 11.070,
+            6: 12.592,
+            7: 14.067,
+            8: 15.507,
+            9: 16.919}
 
+
+        sigmaPosX = 1
+        sigmaPosY = 1
+        sigmaVelX = 10
+        sigmaVelY = 10
 
         self.P = np.array([[sigmaPosX,      0.,      0.,      0.],
                            [0.,       sigmaPosY,     0.,      0.],
@@ -45,7 +63,7 @@ class KalmanXYZ(object):
                            [0.,     1.,      0.,      0.]])
 
         # image detection noise (in meters)
-        sensor_acc_X = 0.1
+        sensor_acc_X = 1
         sensor_acc_Y = 1
         self.R = np.array([[sensor_acc_X,        0.0],
                            [0.0,        sensor_acc_Y]])

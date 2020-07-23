@@ -161,6 +161,8 @@ class Track:
             self.state = TrackState.Deleted
         elif self.time_since_update > self._max_age:
             self.state = TrackState.Deleted
+        else:
+            self.time_since_update += 1
 
     def is_tentative(self):
         """Returns True if this track is tentative (unconfirmed).

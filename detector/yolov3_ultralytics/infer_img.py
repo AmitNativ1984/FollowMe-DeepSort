@@ -68,7 +68,7 @@ class YOLOv3(object):
         # boxes = det
         if not torch.is_tensor(boxes[0]):
             if not boxes[0]:
-                return [None], [None], [None]
+                return [np.array([])], [np.array([])], [np.array([])]
 
 
         height, width = ori_img.shape[:2]

@@ -111,7 +111,8 @@ class Tracker:
             features = np.array([dets[i].feature for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
             cost_matrix = self.metric.distance(features, targets)
-
+            # gating the cost matrix based on mahalanobis distance of track. this happens after every matching based on
+            # features
             if UTM_TRACKING:
                 cost_matrix = utm_linear_assignment.gate_cost_matrix(
                     cost_matrix, tracks, dets, track_indices,
@@ -123,13 +124,14 @@ class Tracker:
 
             return cost_matrix
 
-        # Split track set into confirmed and unconfirmed tracks.
+        # Split track set into confirmed and unconfirmed tracks (after n frames initializing or before)
         confirmed_tracks = [
             i for i, t in enumerate(self.tracks) if t.is_confirmed()]
         unconfirmed_tracks = [
             i for i, t in enumerate(self.tracks) if not t.is_confirmed()]
 
-        # Associate detections with known track based on deep features and rid
+        # Associate CONFIRMED tracks with new detections by matching cascade.
+        # result is matched/unmatched tracks and unmatched detections
         if UTM_TRACKING:
             matches_a, unmatched_tracks_a, unmatched_detections = \
                 utm_linear_assignment.matching_cascade(
@@ -141,7 +143,7 @@ class Tracker:
                     gated_metric, self.metric.matching_threshold, self.max_age,
                     self.tracks, detections, confirmed_tracks)
 
-        # Associate remaining tracks together with unconfirmed tracks using IOU.
+        # Associate already known tentative tracks with unmatched tracks as for iou test
         iou_track_candidates = unconfirmed_tracks + [
             k for k in unmatched_tracks_a if
             self.tracks[k].time_since_update == 1]
