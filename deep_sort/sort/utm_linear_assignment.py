@@ -199,5 +199,5 @@ def gate_cost_matrix(
             track.mean, track.covariance, measurements, only_position)
         cost_matrix[row, squared_maha > gating_threshold] = gated_cost
         metric_utm_dist = np.sqrt(np.sum((track.mean[:2] - measurements[:2])**2, axis=0))
-        cost_matrix[row, metric_utm_dist > 2] = gated_cost
+        cost_matrix[row, metric_utm_dist > 1.5] = gated_cost
     return cost_matrix

@@ -63,8 +63,8 @@ class KalmanXYZ(object):
                            [0.,     1.,      0.,      0.]])
 
         # image detection noise (in meters)
-        sensor_acc_X = 1
-        sensor_acc_Y = 1
+        sensor_acc_X = 0.5
+        sensor_acc_Y = 0.5
         self.R = np.array([[sensor_acc_X,        0.0],
                            [0.0,        sensor_acc_Y]])
 
