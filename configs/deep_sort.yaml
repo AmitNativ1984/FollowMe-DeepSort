@@ -1,6 +1,7 @@
 DEEPSORT:
-  REID_CKPT: "./deep_sort/deep/checkpoint/ckpt.t7"
-  MAX_DIST: 0.1  # distance between features of detections to be considered same object
+  REID_CKPT: "./deep_sort/deep/checkpoint/persons_128x64.t7"
+  VEHICLE_REID_CKPT: "./deep_sort/deep/checkpoint/vehicles_128x128.t7"
+  MAX_DIST: 0.2  # distance between features of detections to be considered same object
   MIN_CONFIDENCE: 0.2
   NMS_MAX_OVERLAP: 0.4  # non max suppression between near objects
   MAX_IOU_DISTANCE: 0.9   # distance in term of IOU distance between detections of same object
