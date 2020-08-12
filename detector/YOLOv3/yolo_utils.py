@@ -75,7 +75,7 @@ def multi_bbox_ious(boxes1, boxes2, x1y1x2y2=True):
     uarea = area1 + area2 - carea
     return carea/uarea
 
-from nms import boxes_nms
+from .nms import boxes_nms
 def post_process(boxes, num_classes, conf_thresh=0.01, nms_thresh=0.45, obj_thresh=0.3):
     batch_size = boxes.size(0)
 
@@ -90,11 +90,12 @@ def post_process(boxes, num_classes, conf_thresh=0.01, nms_thresh=0.45, obj_thre
             keep = boxes_nms(masked_boxes[:,:4], masked_boxes[:,5], nms_thresh)
 
             nmsed_boxes = masked_boxes[keep, :]
-        
+
             processed_boxes.append(nmsed_boxes)
         processed_boxes = torch.cat(processed_boxes, dim=0)
-    
-    results_boxes.append(processed_boxes)
+        results_boxes.append(processed_boxes)
+
+    # results_boxes = torch.cat(results_boxes, dim=0)
 
     return results_boxes
 
@@ -151,11 +152,11 @@ def convert2cpu_long(gpu_matrix):
 def get_all_boxes(output, conf_thresh, num_classes, only_objectness=1, validation=False, use_cuda=True):
     # total number of inputs (batch size)
     # first element (x) for first tuple (x, anchor_mask, num_anchor)
-    batchsize = output[0]['x'].data.size(0)
+    batchsize = len(output.keys())#output[0]['x'].data.size(0)
 
     all_boxes = []
-    for i in range(len(output)):
-        pred, anchors, num_anchors = output[i]['x'].data, output[i]['a'], output[i]['n'].item()
+    for b in range(batchsize):
+        pred, anchors, num_anchors = output[b]['x'].data, output[b]['a'], output[b]['n'].item()
         boxes = get_region_boxes(pred, conf_thresh, num_classes, anchors, num_anchors, \
                 only_objectness=only_objectness, validation=validation, use_cuda=use_cuda)
         
