@@ -1,24 +1,28 @@
-import clr, System
+import platform
+if "Windows" in platform.platform():
+    import clr, System
+    from System import Array, Int32
+    from System.Runtime.InteropServices import GCHandle, GCHandleType
+
+    DEBUG_MODE = False
+
+else:
+    DEBUG_MODE = True
+
+
 import os
 import cv2
 import time
 import argparse
 import torch
 import numpy as np
-import sys
 import ctypes
-from distutils.util import strtobool
-import matplotlib.pyplot as plt
-from System import Array, Int32
-from System.Runtime.InteropServices import GCHandle, GCHandleType
 
 from detector import build_detector
 from deep_sort import build_tracker
 from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
-
-DEBUG_MODE = False
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -40,23 +44,7 @@ class Tracker(object):
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
-        self.identities = []
         self.target_id = []
-
-
-    def select_target(self, event, col, row, flag, params):
-        if event == cv2.EVENT_LBUTTONDBLCLK:  # right mouse click
-            print('selected pixel (row, col) = ({},{})'.format(row, col))
-            self.target_init_pos = [row, col]
-
-            # selecting track id
-            for ind, bbox in enumerate(self.bbox_xyxy):
-                if bbox[0] <= col <= bbox[2] and bbox[1] <= row <= bbox[3]:
-                    self.target_id = self.identities[ind]
-                    print("selected target {}".format(self.target_id))
-
-        else:
-            pass
 
     def __enter__(self):
         assert os.path.isfile(self.args.VIDEO_PATH), "Error: path error"
@@ -75,10 +63,8 @@ class Tracker(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
             print(exc_type, exc_value, exc_traceback)
-        
 
     def run(self):
-        VISUALIZE_DETECTIONS = True
         frame = 0
         target_cls = list(self.cls_dict.keys())
         target_name = list(self.cls_dict.values())
@@ -88,36 +74,41 @@ class Tracker(object):
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             print('frame: {}'.format(frame))
-            outputs, detections, detections_conf, target_xyz, cls_names, num_outputs = self.DeepSort(im, target_cls)
-
+            tracks, detections = self.DeepSort(im, target_cls)
 
             # draw boxes for visualization
-            if len(detections) > 0 and VISUALIZE_DETECTIONS:
+            if len(detections) > 0 and DEBUG_MODE:
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
                 bbox_xyxy = DetectionsBBOXES[:, :4]
-                identities = np.zeros(DetectionsBBOXES.shape[0])
-                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id,
-                                    target_xyz=target_xyz, cls_names=cls_names, clr=[0, 255, 0])
+                ori_im = draw_boxes(ori_im, bbox_xyxy)
 
-            if len(outputs) > 0:
-                bbox_xyxy = outputs[:, :4]
-                identities = outputs[:, -1]
-                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=detections_conf,
-                                    target_xyz=target_xyz, cls_names=cls_names)
-                self.bbox_xyxy = bbox_xyxy
-                self.identities = identities
-            if self.args.display:
+            if len(tracks) > 0:
+                bbox_xyxy = []
+                identities = []
+                confs = []
+                utm_pos = []
+                cls_names = []
+
+                for track in tracks:
+                    bbox_xyxy.append(track.to_tlbr())
+                    identities.append(track.track_id)
+                    confs.append(track.confidence)
+                    utm_pos.append(track.utm_pos)
+                    cls_names.append(track.cls_id)
+
+
+                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
+                                    target_xyz=utm_pos, cls_names=cls_names)
+
                 cv2.imshow("test", ori_im)
                 key = cv2.waitKey(1)
-                cv2.setMouseCallback("test", self.select_target)
 
             if self.args.save_path:
                 self.writer.write(ori_im)
 
             frame += 1
-
 
         if self.args.save_path:
             self.writer.release()
@@ -126,39 +117,25 @@ class Tracker(object):
         if not DEBUG_MODE:
             im = self.asNumpyArray(im)
 
-        im = im.reshape(720, 1280, 3)
-
+        im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
-        outputs = []
+        tracks = []
         detections = []
-        detections_conf = []
-        cls_id = []
-        target_xyz = []
 
         if bbox_xywh[0] is not None:
             # select person class
             mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
-
             bbox_xywh = bbox_xywh[0][mask]
             cls_conf = cls_conf[0][mask]
             cls_ids = cls_ids[0][mask]
 
-            # run deepsort algorithm to match detections to tracks
-            outputs, detections, detections_conf, cls_id = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-
+            tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
             # calculate object distance and direction from camera
-            target_xyz = []
-            for i, target in enumerate(outputs):
-                target_xyz.append(self.cam2world.obj_world_xyz(x1=target[0],
-                                                               y1=target[1],
-                                                               x2=target[2],
-                                                               y2=target[3],
-                                                               obj_height_meters=self.args.target_height))
+            for i, track in enumerate(tracks):
+                track.to_utm(self.cam2world, obj_height_meters=self.args.target_height)
 
-        cls_name = [self.cls_dict[int(target_cls)] for target_cls in cls_id]
-
-        return outputs, detections, detections_conf, target_xyz, cls_name, len(outputs)
+        return tracks, detections
 
 
     def asNumpyArray(self, netArray):
@@ -203,9 +180,9 @@ class Tracker(object):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    # parser.add_argument("VIDEO_PATH", type=str)
-    parser.add_argument("--config_detection", type=str, default="./DeepSort/configs/yolov3_probot_ultralytics.yaml")
-    parser.add_argument("--config_deepsort", type=str, default="./DeepSort/configs/deep_sort.yaml")
+    parser.add_argument("VIDEO_PATH", type=str)
+    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
+    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=False)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
