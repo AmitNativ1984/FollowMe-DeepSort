@@ -2,10 +2,10 @@ import torch
 # import time
 import numpy as np
 import cv2
-
-from darknet import Darknet
-from yolo_utils import get_all_boxes, nms, post_process, xywh_to_xyxy, xyxy_to_xywh
-from nms import boxes_nms
+import torchvision
+from .darknet import Darknet
+from .yolo_utils import get_all_boxes, nms, post_process, xywh_to_xyxy, xyxy_to_xywh
+from .nms import boxes_nms
 
 
 class YOLOv3(object):
@@ -34,8 +34,9 @@ class YOLOv3(object):
         img = ori_img.astype(np.float)/255.
 
         img = cv2.resize(img, self.size)
-        img = torch.from_numpy(img).float().permute(2,0,1).unsqueeze(0)
-        
+        img = torch.from_numpy(img).float().permute(2, 0, 1).unsqueeze(0)
+        batch_size = img.shape[1] // 3
+        img = img.view(batch_size, 3, img.shape[2], img.shape[3])
         # forward
         with torch.no_grad():
             img = img.to(self.device)
@@ -43,22 +44,34 @@ class YOLOv3(object):
             boxes = get_all_boxes(out_boxes, self.conf_thresh, self.num_classes, use_cuda=self.use_cuda) #batch size is 1
             # boxes = nms(boxes, self.nms_thresh)
 
-            boxes = post_process(boxes, self.net.num_classes, self.conf_thresh, self.nms_thresh)[0].cpu()
-            boxes = boxes[boxes[:,-2]>self.score_thresh, :] # bbox xmin ymin xmax ymax
+            boxes = post_process(boxes, self.net.num_classes, self.conf_thresh, self.nms_thresh)
 
-        if len(boxes)==0:
-            return [None],[None],[None]
-        
-        height , width = ori_img.shape[:2]
-        bbox = boxes[:,:4]
-        if self.is_xywh:
-            # bbox x y w h
-            bbox = xyxy_to_xywh(bbox)
+        height, width = ori_img.shape[:2]
+        denormalize_bbox_tensor = torch.FloatTensor([[width, height, width, height]]).type_as(boxes[0])
 
-        bbox = bbox * torch.FloatTensor([[width, height, width, height]])
-        cls_conf = boxes[:,5]
-        cls_ids = boxes[:,6].long()
-        return [bbox.numpy()], [cls_conf.numpy()], [cls_ids.numpy()]
+        bbox = []
+        cls_conf = []
+        cls_ids = []
+        for b in range(batch_size):
+            boxes[b] = boxes[b][boxes[b][:, -2] > self.score_thresh] # bbox xmin ymin xmax ymax
+
+        # if len(boxes)==0:
+        #     return None,None,None
+
+
+            bbox.append(boxes[b][:, :4])
+            if bbox[b].nelement() != 0:
+                if self.is_xywh:
+                # bbox x y w h
+                    bbox[b] = xyxy_to_xywh(bbox[b])
+
+
+                bbox[b] = (bbox[b] * denormalize_bbox_tensor).cpu().numpy()
+
+            cls_conf.append((boxes[b][:, 5]).cpu().numpy())
+            cls_ids.append((boxes[b][:, 6].long()).cpu().numpy())
+
+        return bbox, cls_conf, cls_ids
 
     def load_class_names(self,namesfile):
         with open(namesfile, 'r', encoding='utf8') as fp:

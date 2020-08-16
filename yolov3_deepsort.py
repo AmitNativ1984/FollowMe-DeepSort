@@ -1,19 +1,28 @@
+import platform
+if "Windows" in platform.platform():
+    import clr, System
+    from System import Array, Int32
+    from System.Runtime.InteropServices import GCHandle, GCHandleType
+
+    DEBUG_MODE = False
+
+else:
+    DEBUG_MODE = True
+
+
 import os
 import cv2
 import time
 import argparse
 import torch
 import numpy as np
-from distutils.util import strtobool
-import matplotlib.pyplot as plt
+import ctypes
 
 from detector import build_detector
 from deep_sort import build_tracker
-from utils.draw import draw_boxes, create_radar_plot
+from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
-
-
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -35,23 +44,7 @@ class Tracker(object):
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
-        self.identities = []
         self.target_id = []
-
-
-    def select_target(self, event, col, row, flag, params):
-        if event == cv2.EVENT_LBUTTONDBLCLK:  # right mouse click
-            print('selected pixel (row, col) = ({},{})'.format(row, col))
-            self.target_init_pos = [row, col]
-
-            # selecting track id
-            for ind, bbox in enumerate(self.bbox_xyxy):
-                if bbox[0] <= col <= bbox[2] and bbox[1] <= row <= bbox[3]:
-                    self.target_id = self.identities[ind]
-                    print("selected target {}".format(self.target_id))
-
-        else:
-            pass
 
     def __enter__(self):
         assert os.path.isfile(self.args.VIDEO_PATH), "Error: path error"
@@ -60,8 +53,8 @@ class Tracker(object):
         self.im_height = int(self.vdo.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
         if self.args.save_path:
-            fourcc =  cv2.VideoWriter_fourcc(*'MJPG')
-            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width, self.im_height))
+            fourcc =  cv2.VideoWriter_fourcc(*'XVID')
+            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width,self.im_height))
 
         assert self.vdo.isOpened()
         return self
@@ -70,135 +63,143 @@ class Tracker(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
             print(exc_type, exc_value, exc_traceback)
-        
 
     def run(self):
-        VISUALIZE_DETECTIONS = True
         frame = 0
         target_cls = list(self.cls_dict.keys())
         target_name = list(self.cls_dict.values())
-
-        # radar_fig, ax_polar, ax_carthesian = create_radar_plot()
-
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             print('frame: {}'.format(frame))
-            outputs, detections, detections_conf, target_xyz, cls_names = self.DeepSort(im, target_cls)
-
+            tracks, detections = self.DeepSort(im, target_cls)
 
             # draw boxes for visualization
-            if len(detections) > 0 and VISUALIZE_DETECTIONS:
+            if len(detections) > 0 and DEBUG_MODE:
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
                 bbox_xyxy = DetectionsBBOXES[:, :4]
-                identities = np.zeros(DetectionsBBOXES.shape[0])
-                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id,
-                                    target_xyz=target_xyz, cls_names=cls_names, clr=[0, 255, 0])
+                ori_im = draw_boxes(ori_im, bbox_xyxy)
 
-            if len(outputs) > 0:
-                bbox_xyxy = outputs[:, :4]
-                identities = outputs[:, -1]
-                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=detections_conf,
-                                    target_xyz=target_xyz, cls_names=cls_names)
-                self.bbox_xyxy = bbox_xyxy
-                self.identities = identities
+            if len(tracks) > 0:
+                bbox_xyxy = []
+                identities = []
+                confs = []
+                utm_pos = []
+                cls_names = []
 
-            frame += 1
+                for track in tracks:
+                    bbox_xyxy.append(track.to_tlbr())
+                    identities.append(track.track_id)
+                    confs.append(track.confidence)
+                    utm_pos.append(track.utm_pos)
+                    cls_names.append(track.cls_id)
 
-            if self.args.display:
+
+                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
+                                    target_xyz=utm_pos, cls_names=cls_names)
+
                 cv2.imshow("test", ori_im)
                 key = cv2.waitKey(1)
-                cv2.setMouseCallback("test", self.select_target)
-                # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
-                #                                                        ax_carthesian=ax_carthesian)
-
-            for i, target in enumerate(outputs):
-
-                id = target[-1]
-                print(
-                    '\t\t target [{}] \t ({},{},{},{})\t conf {:.2f}\t position: ({:.2f}, {:.2f}, {:.2f})[m]\t cls: [{}]'
-                    .format(id, target[0], target[1], target[2], target[3], detections_conf[i],
-                            target_xyz[i][0], target_xyz[i][1], target_xyz[i][2], cls_names[i]))
-
-                # ax_carthesian.scatter(target_xyz[i][0], target_xyz[i][2], marker='x', color='r')
-                # ax_carthesian.scatter(1, 3, marker='x', color='b')
-
-            plt.pause(0.1)
-
 
             if self.args.save_path:
                 self.writer.write(ori_im)
 
-        self.writer.release()
-        cv2.destroyAllWindows()
+            frame += 1
+
+        if self.args.save_path:
+            self.writer.release()
 
     def DeepSort(self, im, target_cls):
+        if not DEBUG_MODE:
+            im = self.asNumpyArray(im)
+
+        im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
-        bbox_xywh = bbox_xywh[0]
-        cls_conf = cls_conf[0]
-        cls_ids = cls_ids[0]
-        outputs = []
+        tracks = []
         detections = []
-        detections_conf = []
-        cls_name = []
-        target_xyz = []
 
-        if bbox_xywh is not None:
+        if bbox_xywh[0] is not None:
             # select person class
-            for cls in target_cls:
-                try:
-                    mask += cls_ids == cls
-                except Exception:
-                    mask = cls_ids == cls
+            mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
+            bbox_xywh = bbox_xywh[0][mask]
+            cls_conf = cls_conf[0][mask]
+            cls_ids = cls_ids[0][mask]
 
-            bbox_xywh = bbox_xywh[mask]
-            cls_conf = cls_conf[mask]
-            cls_ids = cls_ids[mask]
-
-            # run deepsort algorithm to match detections to tracks
-            outputs, detections, detections_conf, cls_ids = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-
+            tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
             # calculate object distance and direction from camera
-            target_xyz = []
-            for i, target in enumerate(outputs):
-                target_xyz.append(self.cam2world.obj_world_xyz(x1=target[0],
-                                                               y1=target[1],
-                                                               x2=target[2],
-                                                               y2=target[3],
-                                                               obj_height_meters=self.args.target_height))
-                cls_name = [self.cls_dict[int(id)] for id in cls_ids]
+            for i, track in enumerate(tracks):
+                track.to_utm(self.cam2world, obj_height_meters=self.args.target_height)
 
-        return outputs, detections, detections_conf, target_xyz, cls_name
+        return tracks, detections
+
+
+    def asNumpyArray(self, netArray):
+        '''
+        Given a CLR `System.Array` returns a `numpy.ndarray`.  See _MAP_NET_NP for
+        the mapping of CLR types to Numpy dtypes.
+        '''
+
+        _MAP_NET_NP = {
+        'Single' : np.dtype('float32'),
+        'Double' : np.dtype('float64'),
+        'SByte'  : np.dtype('int8'),
+        'Int16'  : np.dtype('int16'),
+        'Int32'  : np.dtype('int32'),
+        'Int64'  : np.dtype('int64'),
+        'Byte'   : np.dtype('uint8'),
+        'UInt16' : np.dtype('uint16'),
+        'UInt32' : np.dtype('uint32'),
+        'UInt64' : np.dtype('uint64'),
+        'Boolean': np.dtype('bool'),
+    }
+
+
+        dims = np.empty(netArray.Rank, dtype=int)
+        for I in range(netArray.Rank):
+            dims[I] = netArray.GetLength(I)
+        netType = netArray.GetType().GetElementType().Name
+
+        try:
+            npArray = np.empty(dims, order='C', dtype=_MAP_NET_NP[netType])
+        except KeyError:
+            raise NotImplementedError("asNumpyArray does not yet support System type {}".format(netType) )
+
+        try: # Memmove
+            sourceHandle = GCHandle.Alloc(netArray, GCHandleType.Pinned)
+            sourcePtr = sourceHandle.AddrOfPinnedObject().ToInt64()
+            destPtr = npArray.__array_interface__['data'][0]
+            ctypes.memmove(destPtr, sourcePtr, npArray.nbytes)
+        finally:
+            if sourceHandle.IsAllocated: sourceHandle.Free()
+        return npArray
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("VIDEO_PATH", type=str)
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
-    parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
+    parser.add_argument("--ignore_display", dest="display", action="store_false", default=False)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
-    parser.add_argument("--save_path", type=str, default="./demo/woods_camouflage_org.avi")
+    parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
-    parser.add_argument("--yolo-method", type=str, default='ultralytics', choices=['ultralytics', 'org'],
-                        help='yolo backbone method. can be one of: [ultralytics, org]')
     parser.add_argument("--img-width", type=int, default=1280,
                         help='img width in pixels')
     parser.add_argument("--img-height", type=int, default=720,
                         help='img height in pixels')
-    parser.add_argument("--thetaX", type=float, default=77.04,#62.0,
+    parser.add_argument("--thetaX", type=float, default=77.04,
                         help='angular camera FOV in horizontal direction. [deg]')
     parser.add_argument("--target-height", type=float, default=1.8,
                         help='tracked target height in [meters]')
 
     return parser.parse_args()
-# 90x 67.5y
+
 
 if __name__=="__main__":
     args = parse_args()
@@ -210,5 +211,3 @@ if __name__=="__main__":
 
     with Tracker(cfg, args) as tracker:
         tracker.run()
-
-    plt.show()

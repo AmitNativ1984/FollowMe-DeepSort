@@ -5,6 +5,7 @@ from .sort.nn_matching import NearestNeighborDistanceMetric
 from .sort.preprocessing import non_max_suppression
 from .sort.detection import Detection
 from .sort.tracker import Tracker
+import torch
 
 
 __all__ = ['DeepSort']
@@ -40,7 +41,7 @@ class DeepSort(object):
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
-        outputs = []
+        output_tracks = []
         detections_conf = []
         detections_cls_id = []
         for track in self.tracker.tracks:
@@ -51,11 +52,13 @@ class DeepSort(object):
             track_id = track.track_id
             detections_conf.append(track.confidence)
             detections_cls_id.append(track.cls_id)
-            outputs.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
+            # output_tracks.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
+            output_tracks.append(track)
 
-        if len(outputs) > 0:
-            outputs = np.stack(outputs,axis=0)
-        return outputs, detections, detections_conf, detections_cls_id
+        # if len(output_tracks) > 0:
+        #     output_tracks = np.stack(output_tracks,axis=0)
+
+        return output_tracks, detections#, detections_conf, detections_cls_id
 
     """
     TODO:

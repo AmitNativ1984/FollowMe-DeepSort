@@ -8,13 +8,13 @@ import argparse
 __all__ = ['build_detector']
 
 def build_detector(cfg, args, use_cuda):
-    if args.yolo_method == 'org':
+    if cfg.YOLOV3.BACKBONE == 'org':
         return YOLOv3(cfg.YOLOV3.CFG, cfg.YOLOV3.WEIGHT, cfg.YOLOV3.CLASS_NAMES,
                         score_thresh=cfg.YOLOV3.SCORE_THRESH, nms_thresh=cfg.YOLOV3.NMS_THRESH,
                         is_xywh=True, use_cuda=use_cuda)
         # returns bbox.numpy(), cls_conf.numpy(), cls_ids.numpy()
 
-    elif args.yolo_method == 'ultralytics':
+    elif cfg.YOLOV3.BACKBONE == 'ultralytics':
         parser = argparse.ArgumentParser()
         parser.add_argument('--cfg', type=str, default=cfg.YOLOV3.CFG, help='*.cfg path')
         parser.add_argument('--names', type=str, default=cfg.YOLOV3.CLASS_NAMES, help='*.names path')

@@ -80,6 +80,8 @@ class Track:
         self._n_init = n_init
         self._max_age = max_age
 
+        self.utm_pos = 0.0
+
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
         width, height)`.
@@ -108,6 +110,16 @@ class Track:
         ret = self.to_tlwh()
         ret[2:] = ret[:2] + ret[2:]
         return ret
+
+    def to_utm(self, cam2world, obj_height_meters):
+        tlbr = self.to_tlbr()
+        self.utm_pos = cam2world.obj_world_xyz(x1=tlbr[0],
+                                          y1=tlbr[1],
+                                          x2=tlbr[2],
+                                          y2=tlbr[3],
+                                          obj_height_meters=obj_height_meters)
+
+        return self.utm_pos
 
     def predict(self, kf):
         """Propagate the state distribution to the current time step using a
