@@ -1,14 +1,11 @@
 import platform
+DEBUG_MODE = True
 if "Windows" in platform.platform():
     import clr, System
     from System import Array, Int32
     from System.Runtime.InteropServices import GCHandle, GCHandleType
 
     DEBUG_MODE = False
-
-else:
-    DEBUG_MODE = True
-
 
 import os
 import cv2
@@ -32,7 +29,7 @@ class Tracker(object):
         if not use_cuda:
             raise UserWarning("Running in cpu mode!")
 
-        if args.display:
+        if not args.ignore_display:
             cv2.namedWindow("test", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
@@ -47,8 +44,8 @@ class Tracker(object):
         self.target_id = []
 
     def __enter__(self):
-        assert os.path.isfile(self.args.VIDEO_PATH), "Error: path error"
-        self.vdo.open(self.args.VIDEO_PATH)
+        assert os.path.isfile(self.args.video_path), "Error: path error"
+        self.vdo.open(self.args.video_path)
         self.im_width = int(self.vdo.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.im_height = int(self.vdo.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
@@ -73,11 +70,10 @@ class Tracker(object):
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
-            print('frame: {}'.format(frame))
             tracks, detections = self.DeepSort(im, target_cls)
 
             # draw boxes for visualization
-            if len(detections) > 0 and DEBUG_MODE:
+            if len(detections) > 0 and DEBUG_MODE and not args.ignore_display:
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
@@ -88,20 +84,21 @@ class Tracker(object):
                 bbox_xyxy = []
                 identities = []
                 confs = []
-                utm_pos = []
+                xyz_pos = []
                 cls_names = []
 
                 for track in tracks:
                     bbox_xyxy.append(track.to_tlbr())
                     identities.append(track.track_id)
                     confs.append(track.confidence)
-                    utm_pos.append(track.utm_pos)
+                    xyz_pos.append(track.xyz_pos)
                     cls_names.append(track.cls_id)
 
 
                 ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
-                                    target_xyz=utm_pos, cls_names=cls_names)
+                                    target_xyz=xyz_pos, cls_names=cls_names)
 
+            if not args.ignore_display:
                 cv2.imshow("test", ori_im)
                 key = cv2.waitKey(1)
 
@@ -133,7 +130,7 @@ class Tracker(object):
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
             # calculate object distance and direction from camera
             for i, track in enumerate(tracks):
-                track.to_utm(self.cam2world, obj_height_meters=self.args.target_height)
+                track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
 
         return tracks, detections
 
@@ -180,10 +177,10 @@ class Tracker(object):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("VIDEO_PATH", type=str)
+    parser.add_argument("--video_path", type=str, default='')
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
-    parser.add_argument("--ignore_display", dest="display", action="store_false", default=False)
+    parser.add_argument("--ignore_display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
     parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
@@ -207,7 +204,8 @@ if __name__=="__main__":
     cfg.merge_from_file(args.config_detection)
     cfg.merge_from_file(args.config_deepsort)
 
-    torch.device("cuda:1")
+    torch.set_num_threads(cfg.NUM_CPU_CORES)
+    print("Using {} CPU cores".format(torch.get_num_threads()))
 
     with Tracker(cfg, args) as tracker:
         tracker.run()
