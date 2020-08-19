@@ -5,7 +5,7 @@ if "Windows" in platform.platform():
     from System import Array, Int32
     from System.Runtime.InteropServices import GCHandle, GCHandleType
 
-    DEBUG_MODE = False
+    DEBUG_MODE = True
 
 import os
 import cv2
@@ -29,7 +29,7 @@ class Tracker(object):
         if not use_cuda:
             raise UserWarning("Running in cpu mode!")
 
-        if not args.ignore_display:
+        if args.display:
             cv2.namedWindow("test", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
@@ -73,7 +73,7 @@ class Tracker(object):
             tracks, detections = self.DeepSort(im, target_cls)
 
             # draw boxes for visualization
-            if len(detections) > 0 and DEBUG_MODE and not args.ignore_display:
+            if len(detections) > 0 and DEBUG_MODE and args.display:
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
@@ -98,7 +98,7 @@ class Tracker(object):
                 ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
                                     target_xyz=xyz_pos, cls_names=cls_names)
 
-            if not args.ignore_display:
+            if args.display:
                 cv2.imshow("test", ori_im)
                 key = cv2.waitKey(1)
 
@@ -180,7 +180,7 @@ def parse_args():
     parser.add_argument("--video_path", type=str, default='')
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
-    parser.add_argument("--ignore_display", action="store_false", default=True)
+    parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
     parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
