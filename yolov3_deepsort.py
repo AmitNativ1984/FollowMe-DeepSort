@@ -5,7 +5,7 @@ if "Windows" in platform.platform():
     from System import Array, Int32
     from System.Runtime.InteropServices import GCHandle, GCHandleType
 
-    DEBUG_MODE = True
+    DEBUG_MODE = False
 
 import os
 import cv2
