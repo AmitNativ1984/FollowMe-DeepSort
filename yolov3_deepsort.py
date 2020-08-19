@@ -1,11 +1,8 @@
 import platform
-DEBUG_MODE = True
 if "Windows" in platform.platform():
     import clr, System
     from System import Array, Int32
     from System.Runtime.InteropServices import GCHandle, GCHandleType
-
-    DEBUG_MODE = False
 
 import os
 import cv2
@@ -73,7 +70,7 @@ class Tracker(object):
             tracks, detections = self.DeepSort(im, target_cls)
 
             # draw boxes for visualization
-            if len(detections) > 0 and DEBUG_MODE and args.display:
+            if len(detections) > 0 and args.debug_mode and args.display:
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
@@ -111,7 +108,7 @@ class Tracker(object):
             self.writer.release()
 
     def DeepSort(self, im, target_cls):
-        if not DEBUG_MODE:
+        if not self.args.debug_mode:
             im = self.asNumpyArray(im)
 
         im = im.reshape(self.args.img_height, self.args.img_width, 3)
@@ -194,6 +191,7 @@ def parse_args():
                         help='angular camera FOV in horizontal direction. [deg]')
     parser.add_argument("--target-height", type=float, default=1.8,
                         help='tracked target height in [meters]')
+    parser.add_argument("--debug-mode", action="store_true", default=False)
 
     return parser.parse_args()
 
