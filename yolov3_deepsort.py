@@ -11,6 +11,7 @@ import argparse
 import torch
 import numpy as np
 import ctypes
+from ctypes import POINTER, c_uint8, cast
 
 from detector import build_detector
 from deep_sort import build_tracker
@@ -108,16 +109,20 @@ class Tracker(object):
         if self.args.save_path:
             self.writer.release()
 
-    def DeepSort(self, im, target_cls):
-        if not self.args.debug_mode:
-            im = self.asNumpyArray(im)
+    def deep_sort_from_pointer(self, im_ptr, target_cls):
+        ptr_type = POINTER(c_uint8)
+        num_pixels = self.args.img_height * self.args.img_width
+        num_bytes = num_pixels * 3
+        im_contiguous = np.ctypeslib.as_array(cast(im_ptr, ptr_type), shape=(num_bytes,))
 
+        return self.DeepSort(im_contiguous, target_cls)
+
+    def DeepSort(self, im, target_cls):
         im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         tracks = []
         detections = []
-
 
         # select person class
         mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
