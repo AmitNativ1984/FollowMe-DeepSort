@@ -124,6 +124,7 @@ class Tracker(object):
         bbox_xywh = bbox_xywh[0][mask]
         cls_conf = cls_conf[0][mask]
         cls_ids = cls_ids[0][mask]
+        cls_ids = np.array([2. if id != 0 else id for id in cls_ids])
 
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
