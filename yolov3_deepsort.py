@@ -102,6 +102,7 @@ class Tracker(object):
             if self.args.save_path:
                 self.writer.write(ori_im)
 
+            print("frame: %d"%(frame))
             frame += 1
 
         if self.args.save_path:
@@ -117,13 +118,14 @@ class Tracker(object):
         tracks = []
         detections = []
 
-        if bbox_xywh[0] is not None:
-            # select person class
-            mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
-            bbox_xywh = bbox_xywh[0][mask]
-            cls_conf = cls_conf[0][mask]
-            cls_ids = cls_ids[0][mask]
 
+        # select person class
+        mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
+        bbox_xywh = bbox_xywh[0][mask]
+        cls_conf = cls_conf[0][mask]
+        cls_ids = cls_ids[0][mask]
+
+        if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
             # calculate object distance and direction from camera
             for i, track in enumerate(tracks):

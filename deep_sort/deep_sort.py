@@ -45,7 +45,7 @@ class DeepSort(object):
         detections_conf = []
         detections_cls_id = []
         for track in self.tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
+            if not track.is_confirmed() or track.time_since_update > 0:
                 continue
             box = track.to_tlwh()
             x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
@@ -55,10 +55,7 @@ class DeepSort(object):
             # output_tracks.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
             output_tracks.append(track)
 
-        # if len(output_tracks) > 0:
-        #     output_tracks = np.stack(output_tracks,axis=0)
-
-        return output_tracks, detections#, detections_conf, detections_cls_id
+        return output_tracks, detections
 
     """
     TODO:
