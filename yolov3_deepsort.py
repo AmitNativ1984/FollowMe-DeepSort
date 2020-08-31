@@ -1,9 +1,3 @@
-import platform
-if "Windows" in platform.platform():
-    import clr, System
-    from System import Array, Int32
-    from System.Runtime.InteropServices import GCHandle, GCHandleType
-
 import os
 import cv2
 import time
@@ -11,6 +5,7 @@ import argparse
 import torch
 import numpy as np
 import ctypes
+from ctypes import POINTER, c_uint8, cast
 
 from detector import build_detector
 from deep_sort import build_tracker
@@ -108,16 +103,20 @@ class Tracker(object):
         if self.args.save_path:
             self.writer.release()
 
-    def DeepSort(self, im, target_cls):
-        if not self.args.debug_mode:
-            im = self.asNumpyArray(im)
+    def deep_sort_from_pointer(self, im_ptr, target_cls):
+        ptr_type = POINTER(c_uint8)
+        num_pixels = self.args.img_height * self.args.img_width
+        num_bytes = num_pixels * 3
+        im_contiguous = np.ctypeslib.as_array(cast(im_ptr, ptr_type), shape=(num_bytes,))
 
+        return self.DeepSort(im_contiguous, target_cls)
+
+    def DeepSort(self, im, target_cls):
         im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         tracks = []
         detections = []
-
 
         # select person class
         mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
@@ -132,47 +131,6 @@ class Tracker(object):
                 track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
 
         return tracks, detections
-
-
-    def asNumpyArray(self, netArray):
-        '''
-        Given a CLR `System.Array` returns a `numpy.ndarray`.  See _MAP_NET_NP for
-        the mapping of CLR types to Numpy dtypes.
-        '''
-
-        _MAP_NET_NP = {
-        'Single' : np.dtype('float32'),
-        'Double' : np.dtype('float64'),
-        'SByte'  : np.dtype('int8'),
-        'Int16'  : np.dtype('int16'),
-        'Int32'  : np.dtype('int32'),
-        'Int64'  : np.dtype('int64'),
-        'Byte'   : np.dtype('uint8'),
-        'UInt16' : np.dtype('uint16'),
-        'UInt32' : np.dtype('uint32'),
-        'UInt64' : np.dtype('uint64'),
-        'Boolean': np.dtype('bool'),
-    }
-
-
-        dims = np.empty(netArray.Rank, dtype=int)
-        for I in range(netArray.Rank):
-            dims[I] = netArray.GetLength(I)
-        netType = netArray.GetType().GetElementType().Name
-
-        try:
-            npArray = np.empty(dims, order='C', dtype=_MAP_NET_NP[netType])
-        except KeyError:
-            raise NotImplementedError("asNumpyArray does not yet support System type {}".format(netType) )
-
-        try: # Memmove
-            sourceHandle = GCHandle.Alloc(netArray, GCHandleType.Pinned)
-            sourcePtr = sourceHandle.AddrOfPinnedObject().ToInt64()
-            destPtr = npArray.__array_interface__['data'][0]
-            ctypes.memmove(destPtr, sourcePtr, npArray.nbytes)
-        finally:
-            if sourceHandle.IsAllocated: sourceHandle.Free()
-        return npArray
 
 def parse_args():
     parser = argparse.ArgumentParser()
