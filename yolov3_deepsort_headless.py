@@ -16,8 +16,8 @@ from utils.camera2world import Cam2World
 def get_merged_config():
     cfg = get_config()
 
+    cfg.merge_from_file(join(dirname(__file__), 'configs', 'yolov3_probot_ultralytics.yaml'))
     cfg.merge_from_file(join(dirname(__file__), 'configs', 'deep_sort.yaml'))
-    cfg.merge_from_file(join(dirname(__file__), 'configs', 'yolov3.yaml'))
 
     return cfg
 
