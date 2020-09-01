@@ -6,12 +6,14 @@ import torch
 import numpy as np
 import ctypes
 from ctypes import POINTER, c_uint8, cast
-
+import PIL
 from detector import build_detector
 from deep_sort import build_tracker
 from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
+
+from pysemanticsegmentation import core as segmentation_core
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -35,6 +37,9 @@ class Tracker(object):
         self.bbox_xyxy = []
         self.target_id = []
 
+        # defining segmentor
+        self.ss_person_model = segmentation_core.Model(graph_filename=self.cfg.PERSON_SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.PERSON_SEGMENTATION)
+        self.ss_vehicle_model = segmentation_core.Model(graph_filename=self.cfg.VEHICLE_SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.VEHICLE_SEGMENTATION)
     def __enter__(self):
         assert os.path.isfile(self.args.video_path), "Error: path error"
         self.vdo.open(self.args.video_path)
@@ -86,7 +91,16 @@ class Tracker(object):
                     xyz_pos.append(track.xyz_pos)
                     cls_names.append(track.cls_id)
 
+                    blue, green, red = cv2.split(ori_im)
+                    x0, y0, x1, y1 = track.to_tlbr().astype(np.int).clip(min=0)
+                    h = y1 - y0
+                    w = x1 - x0
+                    if track.cls_id == 0:
+                        red[y0:y0+h, x0:x0+w][track.mask !=0] = track.mask[track.mask !=0] * 255
+                    else:
+                        green[y0:y0 + h, x0:x0 + w][track.mask != 0] = track.mask[track.mask != 0] * 255
 
+                    ori_im = cv2.merge((blue, green, red))
                 ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
                                     target_xyz=xyz_pos, cls_names=cls_names)
 
@@ -112,13 +126,14 @@ class Tracker(object):
         return self.DeepSort(im_contiguous, target_cls)
 
     def DeepSort(self, im, target_cls):
+        start_time = time.time()
         im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         tracks = []
         detections = []
 
-        # select person class
+        # select supported classes
         mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
         bbox_xywh = bbox_xywh[0][mask]
         cls_conf = cls_conf[0][mask]
@@ -129,14 +144,50 @@ class Tracker(object):
             # calculate object distance and direction from camera
             for i, track in enumerate(tracks):
                 track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
+                # todo: create batch of detections
+                x0, y0, x1, y1 = track.to_tlbr().astype(np.int).clip(min=0)
+                w = x1 - x0
+                h = y1 - y0
+                org_box = im[y0:y1, x0:x1]
+                box, box_org_W, box_org_H = preprocess_segmentation(org_box)
+                mask=self.ss_vehicle_model.run(PIL.Image.fromarray(box))
+                out_mask = postprocess_segmentation(np.asarray(mask[1]), box_org_W, box_org_H)
+                if track.cls_id == 0.:
+                    mask_id = 10
+                else:
+                    mask_id = 11
 
+                out_mask[out_mask != mask_id] = 0
+                out_mask[out_mask == mask_id] = 1
+                track.mask = np.zeros_like(org_box[...,0])
+                track.mask = out_mask[:h, :w]
+
+
+
+            # todo: semantic segmenation of track bboxes
+
+        print('process time: {}'.format(time.time() - start_time))
         return tracks, detections
+
+def preprocess_segmentation(bbox_img):
+    H, W, C = bbox_img.shape
+    padding_frame = (np.max([W // 256, H // 256]) + 1) * 256
+    resize_factor = 256 / padding_frame
+    bbox_img = cv2.copyMakeBorder(bbox_img, 0, padding_frame-H, 0, padding_frame-W, cv2.BORDER_REFLECT)
+    padded_img_shape = bbox_img.shape
+    return bbox_img, padded_img_shape[0], padded_img_shape[1]
+
+def postprocess_segmentation(mask, box_org_W, box_org_H):
+    mask = cv2.resize(mask, (box_org_W, box_org_H), interpolation=cv2.INTER_NEAREST)
+    return mask
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", type=str, default='')
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
+    parser.add_argument("--config_segmentation", type=str, default="./configs/segmentation.yaml")
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
@@ -161,6 +212,7 @@ if __name__=="__main__":
     cfg = get_config()
     cfg.merge_from_file(args.config_detection)
     cfg.merge_from_file(args.config_deepsort)
+    cfg.merge_from_file(args.config_segmentation)
 
     torch.set_num_threads(cfg.NUM_CPU_CORES)
     print("Using {} CPU cores".format(torch.get_num_threads()))

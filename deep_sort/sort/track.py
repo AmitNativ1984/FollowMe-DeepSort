@@ -82,6 +82,7 @@ class Track:
 
         self.xyz_pos = 0.0
         self.detection_tlbr = []
+        self.mask = []
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,

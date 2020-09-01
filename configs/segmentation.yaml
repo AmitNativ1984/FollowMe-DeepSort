@@ -1,0 +1,11 @@
+PERSON_SEGMENTATION:
+  INPUT_SIZE_HEIGHT: 128
+  INPUT_SIZE_WIDTH: 64
+  INPUT_SIZE_NUM_CHANNELS: 3
+  GRAPH_CKPT: 'C:\Temp\gitlab\pyfollowme\DeepSort\detector\segmenation\checkpoint\frozen_graph_128x64.pb'
+
+VEHICLE_SEGMENTATION:
+  INPUT_SIZE_HEIGHT: 256
+  INPUT_SIZE_WIDTH: 256
+  INPUT_SIZE_NUM_CHANNELS: 3
+  GRAPH_CKPT: 'C:\Temp\gitlab\pyfollowme\DeepSort\detector\segmenation\checkpoint\frozen_graph_256x256.pb'
