@@ -45,7 +45,6 @@ class Tracker:
         self.target_id = []
 
     def DeepSort(self, im, target_cls):
-        im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         tracks = []
