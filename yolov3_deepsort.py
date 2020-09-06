@@ -38,8 +38,7 @@ class Tracker(object):
         self.target_id = []
 
         # defining segmentor
-        # self.ss_person_model = segmentation_core.Model(graph_filename=self.cfg.PERSON_SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.PERSON_SEGMENTATION)
-        self.ss_vehicle_model = segmentation_core.Model(graph_filename=self.cfg.VEHICLE_SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.VEHICLE_SEGMENTATION)
+        self.ss_model = segmentation_core.Model(graph_filename=self.cfg.SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.SEGMENTATION)
     def __enter__(self):
         assert os.path.isfile(self.args.video_path), "Error: path error"
         self.vdo.open(self.args.video_path)
@@ -156,9 +155,9 @@ class Tracker(object):
                 h = y1 - y0
                 org_box = im[y0:y1, x0:x1]
                 box, box_org_W, box_org_H = preprocess_segmentation(org_box,
-                                                                    self.cfg.VEHICLE_SEGMENTATION.INPUT_SIZE_WIDTH,
-                                                                    self.cfg.VEHICLE_SEGMENTATION.INPUT_SIZE_HEIGHT)
-                mask=self.ss_vehicle_model.run(PIL.Image.fromarray(box))
+                                                                    self.cfg.SEGMENTATION.INPUT_SIZE_WIDTH,
+                                                                    self.cfg.SEGMENTATION.INPUT_SIZE_HEIGHT)
+                mask=self.ss_model.run(PIL.Image.fromarray(box))
                 out_mask = postprocess_segmentation(np.asarray(mask[1]), box_org_W, box_org_H)
                 if track.cls_id == 0.:
                     mask_id = 10
