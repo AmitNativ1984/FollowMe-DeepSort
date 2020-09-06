@@ -38,7 +38,7 @@ class Tracker(object):
         self.target_id = []
 
         # defining segmentor
-        self.ss_person_model = segmentation_core.Model(graph_filename=self.cfg.PERSON_SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.PERSON_SEGMENTATION)
+        # self.ss_person_model = segmentation_core.Model(graph_filename=self.cfg.PERSON_SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.PERSON_SEGMENTATION)
         self.ss_vehicle_model = segmentation_core.Model(graph_filename=self.cfg.VEHICLE_SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.VEHICLE_SEGMENTATION)
     def __enter__(self):
         assert os.path.isfile(self.args.video_path), "Error: path error"
@@ -92,7 +92,10 @@ class Tracker(object):
                     cls_names.append(track.cls_id)
 
                     blue, green, red = cv2.split(ori_im)
-                    x0, y0, x1, y1 = track.to_tlbr().astype(np.int).clip(min=0)
+                    x0, y0, x1, y1 = track.to_tlbr().astype(np.int)
+                    x0, x1 = np.clip([x0, x1], a_min=0, a_max=im.shape[1])
+                    y0, y1 = np.clip([y0, y1], a_min=0, a_max=im.shape[0])
+
                     h = y1 - y0
                     w = x1 - x0
                     if track.cls_id == 0:
@@ -142,26 +145,30 @@ class Tracker(object):
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
             # calculate object distance and direction from camera
-            img4seg = cv2.resize(im, (256, 256))
-            mask = self.ss_vehicle_model.run(PIL.Image.fromarray(img4seg))
-            full_mask = cv2.resize(np.asarray(mask[1]), (im.shape[1],im.shape[0]), interpolation=cv2.INTER_NEAREST)
-
             for i, track in enumerate(tracks):
-                out_mask = np.zeros_like(full_mask)
+                track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
+                # todo: create batch of detections
+                x0, y0, x1, y1 = track.to_tlbr().astype(np.int)
+                x0, x1 = np.clip([x0, x1], a_min=0, a_max=im.shape[1])
+                y0, y1 = np.clip([y0, y1], a_min=0, a_max=im.shape[0])
+
+                w = x1 - x0
+                h = y1 - y0
+                org_box = im[y0:y1, x0:x1]
+                box, box_org_W, box_org_H = preprocess_segmentation(org_box,
+                                                                    self.cfg.VEHICLE_SEGMENTATION.INPUT_SIZE_WIDTH,
+                                                                    self.cfg.VEHICLE_SEGMENTATION.INPUT_SIZE_HEIGHT)
+                mask=self.ss_vehicle_model.run(PIL.Image.fromarray(box))
+                out_mask = postprocess_segmentation(np.asarray(mask[1]), box_org_W, box_org_H)
                 if track.cls_id == 0.:
                     mask_id = 10
                 else:
                     mask_id = 11
 
-                track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
-                # todo: create batch of detections
-                x0, y0, x1, y1 = track.to_tlbr().astype(np.int).clip(min=0)
-                w = x1 - x0
-                h = y1 - y0
-
-                out_mask[y0:y0+h, x0:x0+w][full_mask[y0:y0+h, x0:x0+w] == mask_id] = 1
-                track.mask = out_mask[y0:y0+h, x0:x0+w]
-                # track.mask = out_mask[:h, :w]
+                out_mask[out_mask != mask_id] = 0
+                out_mask[out_mask == mask_id] = 1
+                track.mask = np.zeros_like(org_box[...,0])
+                track.mask = out_mask[:h, :w]
 
 
 
@@ -170,11 +177,12 @@ class Tracker(object):
         print('process time: {}'.format(time.time() - start_time))
         return tracks, detections
 
-def preprocess_segmentation(bbox_img):
+def preprocess_segmentation(bbox_img, W0, H0):
     H, W, C = bbox_img.shape
-    padding_frame = (np.max([W // 256, H // 256]) + 1) * 256
-    resize_factor = 256 / padding_frame
-    bbox_img = cv2.copyMakeBorder(bbox_img, 0, padding_frame-H, 0, padding_frame-W, cv2.BORDER_REFLECT)
+    # padding_frame = (np.max([W // W0, H // H0]) + 1) * 256
+    padding_frame = (np.max([W, H]))
+    resize_factor = W0 / padding_frame
+    bbox_img = cv2.copyMakeBorder(bbox_img, 0, np.abs(padding_frame-H), 0, np.abs(padding_frame-W), cv2.BORDER_CONSTANT, value=[0,0,0])
     padded_img_shape = bbox_img.shape
     return bbox_img, padded_img_shape[0], padded_img_shape[1]
 
