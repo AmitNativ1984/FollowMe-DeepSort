@@ -63,7 +63,7 @@ class Track:
 
     """
 
-    def __init__(self, mean, covariance, track_id, n_init, max_age,
+    def __init__(self, cam2world, obj_height_meters, mean, covariance, track_id, n_init, max_age,
                  feature=None):
         self.mean = mean
         self.covariance = covariance
@@ -82,6 +82,9 @@ class Track:
 
         self.xyz_pos = 0.0
         self.detection_tlbr = []
+
+        self.cam2world = cam2world
+        self.obj_height_meters = obj_height_meters
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -112,13 +115,13 @@ class Track:
         ret[2:] = ret[:2] + ret[2:]
         return ret
 
-    def to_xyz(self, cam2world, obj_height_meters):
+    def to_xyz(self):
         tlbr = self.to_tlbr()
-        self.xyz_pos = cam2world.obj_world_xyz(x1=tlbr[0],
+        self.xyz_pos = self.cam2world.obj_world_xyz(x1=tlbr[0],
                                           y1=tlbr[1],
                                           x2=tlbr[2],
                                           y2=tlbr[3],
-                                          obj_height_meters=obj_height_meters)
+                                          obj_height_meters=self.obj_height_meters)
 
         return self.xyz_pos
 

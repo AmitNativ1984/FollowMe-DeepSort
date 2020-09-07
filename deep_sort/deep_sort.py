@@ -12,7 +12,7 @@ __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    def __init__(self, model_path, vehicle_model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
+    def __init__(self, model_path, vehicle_model_path, cam2world, obj_height_meters, max_depth, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 
@@ -21,14 +21,21 @@ class DeepSort(object):
         max_cosine_distance = max_dist
         # nn_budget = 100
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        self.tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
+
+        self.cam2world = cam2world
+        self.obj_height_meters = obj_height_meters
+
+        self.tracker = Tracker(metric, cam2world=self.cam2world, obj_height_meters=obj_height_meters,
+                               max_depth=max_depth, max_iou_distance=max_iou_distance, max_age=max_age,
+                               n_init=n_init)
 
     def update(self, bbox_xywh, confidences, cls_ids, ori_img):
         self.height, self.width = ori_img.shape[:2]
         # generate detections
         features = self._get_features(bbox_xywh, ori_img, cls_ids)   # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
-        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
+        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i], cam2world=self.cam2world, obj_height_meters=self.obj_height_meters)
+                      for i, conf in enumerate(confidences) if conf>self.min_confidence]
 
         # run on non-maximum supression
         boxes = np.array([d.tlwh for d in detections])

@@ -30,7 +30,7 @@ class Tracker(object):
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
         self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, args, use_cuda=use_cuda)
-        self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
+        self.deepsort = build_tracker(cfg, self.cam2world, self.args.target_height, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
         self.target_id = []
@@ -128,7 +128,7 @@ class Tracker(object):
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
             # calculate object distance and direction from camera
             for i, track in enumerate(tracks):
-                track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
+                track.to_xyz()
 
         return tracks, detections
 
