@@ -1,20 +1,20 @@
 from .YOLOv3 import YOLOv3
-from .yolov3.infer_img import YOLOv3 as yolov3_ultralytics
-from .yolov3.detect import detect
+from .yolov3_ultralytics.infer_img import YOLOv3 as yolov3_ultralytics
+from .yolov3_ultralytics.detect import detect
 from utils.parser import get_config
 from .YOLOv3.cfg import parse_cfg
 import argparse
 
 __all__ = ['build_detector']
 
-def build_detector(cfg, use_cuda, implementation='org'):
-    if implementation=='org':
+def build_detector(cfg, args, use_cuda):
+    if cfg.YOLOV3.BACKBONE == 'org':
         return YOLOv3(cfg.YOLOV3.CFG, cfg.YOLOV3.WEIGHT, cfg.YOLOV3.CLASS_NAMES,
                         score_thresh=cfg.YOLOV3.SCORE_THRESH, nms_thresh=cfg.YOLOV3.NMS_THRESH,
                         is_xywh=True, use_cuda=use_cuda)
         # returns bbox.numpy(), cls_conf.numpy(), cls_ids.numpy()
 
-    elif implementation == 'new':
+    elif cfg.YOLOV3.BACKBONE == 'ultralytics':
         parser = argparse.ArgumentParser()
         parser.add_argument('--cfg', type=str, default=cfg.YOLOV3.CFG, help='*.cfg path')
         parser.add_argument('--names', type=str, default=cfg.YOLOV3.CLASS_NAMES, help='*.names path')

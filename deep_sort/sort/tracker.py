@@ -64,17 +64,17 @@ class Tracker:
             A list of detections at the current time step.
 
         """
-        # Run matching cascade.
+        # Run matching cascade. (hungarian algorithm)
         matches, unmatched_tracks, unmatched_detections = \
             self._match(detections)
 
         # Update track set.
-        for track_idx, detection_idx in matches:
+        for track_idx, detection_idx in matches:    # update tracks with matched detections
             self.tracks[track_idx].update(
                 self.kf, detections[detection_idx])
-        for track_idx in unmatched_tracks:
+        for track_idx in unmatched_tracks:          # update as track with no detections. add +1 to missed frames. delete if necessary
             self.tracks[track_idx].mark_missed()
-        for detection_idx in unmatched_detections:
+        for detection_idx in unmatched_detections:  # if detections are not associated with any track, initiate track and start counting frames
             self._initiate_track(detections[detection_idx])
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
 
@@ -84,8 +84,8 @@ class Tracker:
         for track in self.tracks:
             if not track.is_confirmed():
                 continue
-            features += track.features
-            targets += [track.track_id for _ in track.features]
+            features += track.features  # add feature vector to list
+            targets += [track.track_id for _ in track.features] # associate target id with every feature vector
             track.features = []
         self.metric.partial_fit(
             np.asarray(features), np.asarray(targets), active_targets)
@@ -108,7 +108,7 @@ class Tracker:
         unconfirmed_tracks = [
             i for i, t in enumerate(self.tracks) if not t.is_confirmed()]
 
-        # Associate confirmed tracks using appearance features.
+        # Associate detections with known track based on deep features and rid
         matches_a, unmatched_tracks_a, unmatched_detections = \
             linear_assignment.matching_cascade(
                 gated_metric, self.metric.matching_threshold, self.max_age,

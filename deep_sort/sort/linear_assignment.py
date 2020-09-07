@@ -52,7 +52,7 @@ def min_cost_matching(
 
     if len(detection_indices) == 0 or len(track_indices) == 0:
         return [], track_indices, detection_indices  # Nothing to match.
-
+    # associating detections with tracks based on features
     cost_matrix = distance_metric(
         tracks, detections, track_indices, detection_indices)
     cost_matrix[cost_matrix > max_distance] = max_distance + 1e-5
@@ -123,7 +123,7 @@ def matching_cascade(
 
     unmatched_detections = detection_indices
     matches = []
-    for level in range(cascade_depth):
+    for level in range(cascade_depth):  # comparing with prev frames (up to the num given as input param)
         if len(unmatched_detections) == 0:  # No detections left
             break
 
