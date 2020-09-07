@@ -17,4 +17,5 @@ def build_tracker(cfg, cam2world, obj_height_meters, use_cuda):
                     max_age=cfg.DEEPSORT.MAX_AGE,
                     n_init=cfg.DEEPSORT.N_INIT,
                     nn_budget=cfg.DEEPSORT.NN_BUDGET,
+                    PERCEPTION_MODE=cfg.PERCEPTION_MODE,
                     use_cuda=use_cuda)

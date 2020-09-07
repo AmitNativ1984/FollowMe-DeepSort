@@ -12,7 +12,11 @@ __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    def __init__(self, model_path, vehicle_model_path, cam2world, obj_height_meters, max_depth, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
+    def __init__(self, model_path, vehicle_model_path, cam2world, obj_height_meters, max_depth, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100,
+                 PERCEPTION_MODE=False, use_cuda=True):
+
+        self.PERCEPTION_MODE = PERCEPTION_MODE
+
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 
@@ -45,6 +49,11 @@ class DeepSort(object):
 
         # update tracker
         self.tracker.predict()  # predicting bbox position based on kf
+        # update tracks xyz if not working in perception mode:
+        # if in perception mode, track.xyz_pos is updated outside in application
+        if not self.PERCEPTION_MODE:
+            for track in self.tracker.tracks:
+                track.to_xyz()
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities

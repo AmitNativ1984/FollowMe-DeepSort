@@ -68,6 +68,7 @@ class Tracker:
             A list of detections at the current time step.
 
         """
+
         # Run matching cascade. (hungarian algorithm)
         matches, unmatched_tracks, unmatched_detections = \
             self._match(detections)

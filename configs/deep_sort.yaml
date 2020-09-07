@@ -11,3 +11,4 @@ DEEPSORT:
   NN_BUDGET: 300        # number of associated appearances descriptors on each track
 
 NUM_CPU_CORES: 1
+PERCEPTION_MODE: False

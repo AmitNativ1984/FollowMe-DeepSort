@@ -126,9 +126,6 @@ class Tracker(object):
 
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-            # calculate object distance and direction from camera
-            for i, track in enumerate(tracks):
-                track.to_xyz()
 
         return tracks, detections
 
