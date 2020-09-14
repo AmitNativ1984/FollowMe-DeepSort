@@ -1,0 +1,9 @@
+datset:bbox
+backbone:xception
+out_stride:8
+lr:0.001
+lr_scheduler:step
+loss_type:ce
+epoch:250
+base_size:256
+crop_size:256
