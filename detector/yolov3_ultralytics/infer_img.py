@@ -4,8 +4,6 @@ from sys import platform
 from .models import *  # set ONNX_EXPORT in models.py
 from .utils.datasets import *
 from .utils.utils import *
-from ..YOLOv3.yolo_utils import xyxy_to_xywh
-
 
 class YOLOv3(object):
     def __init__(self, opt):
@@ -63,7 +61,7 @@ class YOLOv3(object):
 
         if self.is_xywh:
             # bbox x y w h
-            bbox = xyxy_to_xywh(bbox)
+            bbox = xyxy2xywh(bbox)
 
         bbox = bbox * torch.FloatTensor([[width/416, height/416, width/416, height/416]]).to(pred.device)
 
