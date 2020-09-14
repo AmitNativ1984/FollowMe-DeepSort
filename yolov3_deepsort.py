@@ -13,7 +13,8 @@ from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
 
-from pysemanticsegmentation import core as segmentation_core
+# from pysemanticsegmentation import core as segmentation_core
+from segmentor.pytorch_deeplab.infer_bbox import InferBoundingBox
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -29,7 +30,7 @@ class Tracker(object):
 
         self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
                                    self.args.thetaX)
-        self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
+        self.cls_dict = {0: 'Person', 2: 'Vehicle', 7: 'Vehicle'}
         self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, args, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
@@ -38,7 +39,10 @@ class Tracker(object):
         self.target_id = []
 
         # defining segmentor
-        self.ss_model = segmentation_core.Model(graph_filename=self.cfg.SEGMENTATION.GRAPH_CKPT, cfg=self.cfg.SEGMENTATION)
+        self.segmentor = InferBoundingBox(cfg.SEGMENTOR)
+        self.segmentor.define_model()
+        self.segmentor.load_model()
+
     def __enter__(self):
         assert os.path.isfile(self.args.video_path), "Error: path error"
         self.vdo.open(self.args.video_path)
@@ -52,7 +56,6 @@ class Tracker(object):
         assert self.vdo.isOpened()
         return self
 
-    
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
             print(exc_type, exc_value, exc_traceback)
@@ -141,61 +144,90 @@ class Tracker(object):
         cls_conf = cls_conf[0][mask]
         cls_ids = cls_ids[0][mask]
 
+
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-            # calculate object distance and direction from camera
-            for i, track in enumerate(tracks):
-                track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
-                # todo: create batch of detections
-                x0, y0, x1, y1 = track.to_tlbr().astype(np.int)
-                x0, x1 = np.clip([x0, x1], a_min=0, a_max=im.shape[1])
-                y0, y1 = np.clip([y0, y1], a_min=0, a_max=im.shape[0])
+            tracks = self.segment_bboxes(tracks, im)
+            tracks = self.calculate_track_xyz_pos(tracks)
 
-                w = x1 - x0
-                h = y1 - y0
-                org_box = im[y0:y1, x0:x1]
-                box, box_org_W, box_org_H = preprocess_segmentation(org_box,
-                                                                    self.cfg.SEGMENTATION.INPUT_SIZE_WIDTH,
-                                                                    self.cfg.SEGMENTATION.INPUT_SIZE_HEIGHT)
-                mask=self.ss_model.run(PIL.Image.fromarray(box))
-                out_mask = postprocess_segmentation(np.asarray(mask[1]), box_org_W, box_org_H)
-                if track.cls_id == 0.:
-                    mask_id = 10
-                else:
-                    mask_id = 11
-
-                out_mask[out_mask != mask_id] = 0
-                out_mask[out_mask == mask_id] = 1
-                track.mask = np.zeros_like(org_box[...,0])
-                track.mask = out_mask[:h, :w]
-
-
-
-            # todo: semantic segmenation of track bboxes
 
         print('process time: {}'.format(time.time() - start_time))
         return tracks, detections
 
-def preprocess_segmentation(bbox_img, W0, H0):
-    H, W, C = bbox_img.shape
-    # padding_frame = (np.max([W // W0, H // H0]) + 1) * 256
-    padding_frame = (np.max([W, H]))
-    resize_factor = W0 / padding_frame
-    bbox_img = cv2.copyMakeBorder(bbox_img, 0, np.abs(padding_frame-H), 0, np.abs(padding_frame-W), cv2.BORDER_CONSTANT, value=[0,0,0])
-    padded_img_shape = bbox_img.shape
-    return bbox_img, padded_img_shape[0], padded_img_shape[1]
+    def calculate_track_xyz_pos(self, tracks):
+        for _, track in enumerate(tracks):
+            track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
 
-def postprocess_segmentation(mask, box_org_W, box_org_H):
-    mask = cv2.resize(mask, (box_org_W, box_org_H), interpolation=cv2.INTER_NEAREST)
-    return mask
+        return tracks
 
+    def segment_bboxes(self, tracks, im):
+
+        bbox = [None] * len(tracks)
+        padded_bbox_shape = [None] * len(tracks)
+        org_bbox_shape = [None] * len(tracks)
+        bbox_resize_factor = [None] * len(tracks)
+        bbox_cls_id = [None] * len(tracks)
+
+        # batching all tracks for inference:
+        for i, track in enumerate(tracks):
+
+            x0, y0, x1, y1 = track.to_tlbr().astype(np.int)
+            x0, x1 = np.clip([x0, x1], a_min=0, a_max=im.shape[1])
+            y0, y1 = np.clip([y0, y1], a_min=0, a_max=im.shape[0])
+
+            org_box = im[y0:y1, x0:x1]
+            resized_bbox_tensor, padded_shape, org_shape, resize_factor = \
+                self.preprocess_segmentation(org_box, self.cfg.SEGMENTOR.INPUT_SIZE_WIDTH, self.cfg.SEGMENTOR.INPUT_SIZE_HEIGHT)
+
+            bbox[i] = resized_bbox_tensor
+            padded_bbox_shape[i] = padded_shape
+            org_bbox_shape[i] = org_shape
+            bbox_resize_factor[i] = resize_factor
+            bbox_cls_id[i] = track.cls_id
+
+
+        if len(bbox) != 0:
+            bbox_tensor = torch.cat(bbox).view(-1, 3, self.cfg.SEGMENTOR.INPUT_SIZE_HEIGHT, self.cfg.SEGMENTOR.INPUT_SIZE_WIDTH)
+            bbox_tensor = bbox_tensor.cuda()
+            org_bbox_shape = np.stack(org_bbox_shape, axis=0)
+
+            raw_pred_mask = self.segmentor.infer(bbox_tensor)
+            tracks = self.postprocess_segmentation(tracks, raw_pred_mask, bbox_cls_id, padded_bbox_shape, org_bbox_shape)
+
+        return tracks
+
+    def preprocess_segmentation(self, bbox_img, W0, H0):
+        H, W, C = bbox_img.shape
+        org_bbox_shape = (H, W)
+        padding_frame = (np.max([W, H]))
+        resize_factor = W0 / padding_frame
+        padded_bbox_img = cv2.copyMakeBorder(bbox_img, 0, np.abs(padding_frame-H), 0, np.abs(padding_frame-W), cv2.BORDER_CONSTANT, value=[0,0,0])
+        padded_bbox_shape = padded_bbox_img.shape[:2]
+        resized_bbox_image = cv2.resize(padded_bbox_img, (H0, W0))
+        resized_bbox_tensor = InferBoundingBox.preprocess()(resized_bbox_image)
+
+        return resized_bbox_tensor, padded_bbox_shape, org_bbox_shape, resize_factor
+
+    def postprocess_segmentation(self, tracks, raw_pred_mask, bbox_cls_id, padded_bbox_shape, org_bbox_shape):
+
+        for idx in range(raw_pred_mask.shape[0]):
+            mask = cv2.resize(raw_pred_mask[idx, ...], padded_bbox_shape[idx], interpolation=cv2.INTER_NEAREST)
+            mask = mask[:org_bbox_shape[idx][0], :org_bbox_shape[idx][1]]
+            segmentation_cls_id = self.segmentor.labels_decoder().cls_id_dict[self.cls_dict[bbox_cls_id[idx]]]
+            mask[mask != segmentation_cls_id] = 0
+            mask[mask == segmentation_cls_id] = 1
+
+            tracks[idx].mask = mask
+
+
+        return tracks
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", type=str, default='')
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
-    parser.add_argument("--config_segmentation", type=str, default="./configs/segmentation.yaml")
+    # parser.add_argument("--config_segmentation", type=str, default="./configs/segmentation.yaml")
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
@@ -214,13 +246,11 @@ def parse_args():
 
     return parser.parse_args()
 
-
 if __name__=="__main__":
     args = parse_args()
     cfg = get_config()
     cfg.merge_from_file(args.config_detection)
     cfg.merge_from_file(args.config_deepsort)
-    cfg.merge_from_file(args.config_segmentation)
 
     torch.set_num_threads(cfg.NUM_CPU_CORES)
     print("Using {} CPU cores".format(torch.get_num_threads()))
