@@ -36,13 +36,13 @@ class Tracker:
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
 
         args = lambda: None
-        args.yolo_method = 'org'
-        self.detector = build_detector(self.cfg, args, use_cuda=use_cuda)
+        self.detector = build_detector(self.cfg, use_cuda=use_cuda)
         self.deepsort = build_tracker(self.cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
         self.identities = []
         self.target_id = []
+
 
     def DeepSort(self, im, target_cls):
         # do detection

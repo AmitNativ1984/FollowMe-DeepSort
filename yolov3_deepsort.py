@@ -14,8 +14,6 @@ from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
 
-# from pysemanticsegmentation import core as segmentation_core
-
 class Tracker(object):
     def __init__(self, cfg, args):
         self.cfg = cfg
@@ -32,7 +30,7 @@ class Tracker(object):
                                    self.args.thetaX)
         self.cls_dict = {0: 'Person', 2: 'Vehicle', 7: 'Vehicle'}
         self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, args, use_cuda=use_cuda)
+        self.detector = build_detector(cfg, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
         self.segmentor = build_segmentor(cfg, self.cls_dict)
         self.class_names = self.detector.class_names
@@ -129,8 +127,6 @@ class Tracker(object):
         return self.DeepSort(im_contiguous, target_cls)
 
     def DeepSort(self, im, target_cls):
-        start_time = time.time()
-        im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         tracks = []
@@ -146,17 +142,9 @@ class Tracker(object):
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
             tracks = self.segmentor.segment_bboxes(tracks, im)
-            tracks = self.calculate_track_xyz_pos(tracks)
+            tracks = self.deepsort.calculate_track_xyz_pos(self.cam2world, tracks, self.args.target_height)
 
-
-        print('process time: {}'.format(time.time() - start_time))
         return tracks, detections
-
-    def calculate_track_xyz_pos(self, tracks):
-        for _, track in enumerate(tracks):
-            track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
-
-        return tracks
 
 
 def parse_args():

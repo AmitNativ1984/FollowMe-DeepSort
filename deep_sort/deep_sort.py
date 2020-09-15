@@ -47,12 +47,8 @@ class DeepSort(object):
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 0:
                 continue
-            box = track.to_tlwh()
-            x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
-            track_id = track.track_id
             detections_conf.append(track.confidence)
             detections_cls_id.append(track.cls_id)
-            # output_tracks.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
             output_tracks.append(track)
 
         return output_tracks, detections
@@ -132,5 +128,12 @@ class DeepSort(object):
             features[vehicle_inds, :] = vehicle_features
 
         return features
+
+    @staticmethod
+    def calculate_track_xyz_pos(cam2world, tracks, target_height):
+        for _, track in enumerate(tracks):
+            track.to_xyz(cam2world, obj_height_meters=target_height)
+
+        return tracks
 
 
