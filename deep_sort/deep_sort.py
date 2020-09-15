@@ -23,12 +23,15 @@ class DeepSort(object):
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
         self.tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
 
-    def update(self, bbox_xywh, confidences, cls_ids, ori_img):
+    def update_detections(self, bbox_xywh, confidences, cls_ids, ori_img):
+
         self.height, self.width = ori_img.shape[:2]
+
         # generate detections
-        features = self._get_features(bbox_xywh, ori_img, cls_ids)   # get recognition features for every bbox
+        features = self._get_features(bbox_xywh, ori_img, cls_ids)  # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
-        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
+        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if
+                      conf > self.min_confidence]
 
         # run on non-maximum supression
         boxes = np.array([d.tlwh for d in detections])
@@ -36,22 +39,22 @@ class DeepSort(object):
         indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
         detections = [detections[i] for i in indices]
 
+        return detections
+
+    def update_tracks(self, detections):
+
         # update tracker
         self.tracker.predict()  # predicting bbox position based on kf
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
         output_tracks = []
-        detections_conf = []
-        detections_cls_id = []
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 0:
                 continue
-            detections_conf.append(track.confidence)
-            detections_cls_id.append(track.cls_id)
             output_tracks.append(track)
 
-        return output_tracks, detections
+        return output_tracks
 
     """
     TODO:

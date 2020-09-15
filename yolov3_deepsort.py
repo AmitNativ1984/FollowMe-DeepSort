@@ -70,7 +70,8 @@ class Tracker(object):
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
-            tracks, detections = self.DeepSort.detect_and_track(im)
+            detections = self.DeepSort.detect(im)
+            tracks = self.DeepSort.track(detections, im)
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
