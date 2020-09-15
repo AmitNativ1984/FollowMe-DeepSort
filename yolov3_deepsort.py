@@ -38,6 +38,12 @@ class Tracker(object):
         self.bbox_xyxy = []
         self.target_id = []
 
+        self.DeepSort = DeepSort(detector=self.detector,
+                                 deepsort_tracker=self.deepsort,
+                                 segmentor=self.segmentor,
+                                 cls_dict=self.cls_dict,
+                                 cam2world=self.cam2world,
+                                 target_height=self.args.target_height)
 
 
     def __enter__(self):
@@ -64,8 +70,7 @@ class Tracker(object):
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
-            tracks, detections = DeepSort(im, self.detector, self.deepsort, self.segmentor, self.cls_dict,
-                                          self.cam2world, self.args.target_height)
+            tracks, detections = self.DeepSort.detect_and_track(im)
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
