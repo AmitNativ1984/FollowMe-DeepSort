@@ -23,7 +23,7 @@ class DeepSort(object):
         cls_ids = cls_ids[0][mask]
 
         detections = self.deepsort_tracker.update_detections(bbox_xywh, cls_conf, cls_ids, im)
-
+        detections = self.segmentor.segment_bboxes(detections, im)
         return detections
 
     def track(self, detections, im):

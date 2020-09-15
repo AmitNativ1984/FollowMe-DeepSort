@@ -12,16 +12,16 @@ class Segmentor(object):
         self.segmentor.define_model()
         self.segmentor.load_model()
 
-    def segment_bboxes(self, tracks, im):
+    def segment_bboxes(self, targets, im):
 
-        bbox = [None] * len(tracks)
-        padded_bbox_shape = [None] * len(tracks)
-        org_bbox_shape = [None] * len(tracks)
-        bbox_resize_factor = [None] * len(tracks)
-        bbox_cls_id = [None] * len(tracks)
+        bbox = [None] * len(targets)
+        padded_bbox_shape = [None] * len(targets)
+        org_bbox_shape = [None] * len(targets)
+        bbox_resize_factor = [None] * len(targets)
+        bbox_cls_id = [None] * len(targets)
 
-        # batching all tracks for inference:
-        for i, track in enumerate(tracks):
+        # batching all targets for inference:
+        for i, track in enumerate(targets):
 
             x0, y0, x1, y1 = track.to_tlbr().astype(np.int)
             x0, x1 = np.clip([x0, x1], a_min=0, a_max=im.shape[1])
@@ -44,9 +44,9 @@ class Segmentor(object):
             org_bbox_shape = np.stack(org_bbox_shape, axis=0)
 
             raw_pred_mask = self.segmentor.infer(bbox_tensor)
-            tracks = self.postprocess_segmentation(tracks, raw_pred_mask, bbox_cls_id, padded_bbox_shape, org_bbox_shape)
+            targets = self.postprocess_segmentation(targets, raw_pred_mask, bbox_cls_id, padded_bbox_shape, org_bbox_shape)
 
-        return tracks
+        return targets
 
     def preprocess_segmentation(self, bbox_img, W0, H0):
         H, W, C = bbox_img.shape
@@ -60,7 +60,7 @@ class Segmentor(object):
 
         return resized_bbox_tensor, padded_bbox_shape, org_bbox_shape, resize_factor
 
-    def postprocess_segmentation(self, tracks, raw_pred_mask, bbox_cls_id, padded_bbox_shape, org_bbox_shape):
+    def postprocess_segmentation(self, targets, raw_pred_mask, bbox_cls_id, padded_bbox_shape, org_bbox_shape):
 
         for idx in range(raw_pred_mask.shape[0]):
             mask = cv2.resize(raw_pred_mask[idx, ...], padded_bbox_shape[idx], interpolation=cv2.INTER_NEAREST)
@@ -69,6 +69,6 @@ class Segmentor(object):
             mask[mask != segmentation_cls_id] = 0
             mask[mask == segmentation_cls_id] = 1
 
-            tracks[idx].mask = mask
+            targets[idx].mask = mask
 
-        return tracks
+        return targets

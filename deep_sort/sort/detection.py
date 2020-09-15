@@ -34,6 +34,9 @@ class Detection(object):
         self.feature = feature
         self.cls_id = cls_id
 
+        self.mask = []
+        self.xyz_pos = 0.0
+
     def to_tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,
         `(top left, bottom right)`.
