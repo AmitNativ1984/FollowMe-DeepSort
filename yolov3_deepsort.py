@@ -13,6 +13,7 @@ from segmentor import build_segmentor
 from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
+from deepsort_core import DeepSort
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -58,14 +59,13 @@ class Tracker(object):
 
     def run(self):
         frame = 0
-        target_cls = list(self.cls_dict.keys())
-        target_name = list(self.cls_dict.values())
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
-            tracks, detections = self.DeepSort(im, target_cls)
+            tracks, detections = DeepSort(im, self.detector, self.deepsort, self.segmentor, self.cls_dict,
+                                          self.cam2world, self.args.target_height)
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
@@ -117,34 +117,6 @@ class Tracker(object):
 
         if self.args.save_path:
             self.writer.release()
-
-    def deep_sort_from_pointer(self, im_ptr, target_cls):
-        ptr_type = POINTER(c_uint8)
-        num_pixels = self.args.img_height * self.args.img_width
-        num_bytes = num_pixels * 3
-        im_contiguous = np.ctypeslib.as_array(cast(im_ptr, ptr_type), shape=(num_bytes,))
-
-        return self.DeepSort(im_contiguous, target_cls)
-
-    def DeepSort(self, im, target_cls):
-        # do detection
-        bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
-        tracks = []
-        detections = []
-
-        # select supported classes
-        mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
-        bbox_xywh = bbox_xywh[0][mask]
-        cls_conf = cls_conf[0][mask]
-        cls_ids = cls_ids[0][mask]
-
-
-        if len(cls_ids) > 0:
-            tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-            tracks = self.segmentor.segment_bboxes(tracks, im)
-            tracks = self.deepsort.calculate_track_xyz_pos(self.cam2world, tracks, self.args.target_height)
-
-        return tracks, detections
 
 
 def parse_args():
