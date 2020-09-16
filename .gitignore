@@ -13,3 +13,4 @@ build/
 *.mpeg
 *.pt
 /.idea/
+*.pth
