@@ -81,6 +81,18 @@ class Tracker(object):
                 bbox_xyxy = DetectionsBBOXES[:, :4]
                 ori_im = draw_boxes(ori_im, bbox_xyxy)
 
+                blue, green, red = cv2.split(ori_im)
+                for detection in detections:
+                    x0, y0, x1, y1 = detection.to_tlbr().astype(np.int)
+                    x0, x1 = np.clip([x0, x1], a_min=0, a_max=im.shape[1])
+                    y0, y1 = np.clip([y0, y1], a_min=0, a_max=im.shape[0])
+
+                    h = y1 - y0
+                    w = x1 - x0
+                    blue[y0:y0 + h, x0:x0 + w][detection.mask != 0] = detection.mask[detection.mask != 0] * 255
+
+                ori_im = cv2.merge((blue, green, red))
+
             if len(tracks) > 0:
                 bbox_xyxy = []
                 identities = []
