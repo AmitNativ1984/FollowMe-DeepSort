@@ -64,7 +64,7 @@ class Track:
     """
 
     def __init__(self, mean, covariance, track_id, n_init, max_age,
-                 feature=None):
+                 feature=None, detection_depth=0.0):
         self.mean = mean
         self.covariance = covariance
         self.track_id = track_id
@@ -81,6 +81,7 @@ class Track:
         self._max_age = max_age
 
         self.xyz_pos = 0.0
+        self.detection_depth = 0.0
         self.detection_tlbr = []
         self.mask = []
 
@@ -154,6 +155,9 @@ class Track:
         self.features.append(detection.feature)
         self.confidence = detection.confidence
         self.cls_id = detection.cls_id
+
+        self.detection_depth = detection.depth  # original depth of matched detection.
+        self.mask = detection.mask
 
         self.hits += 1
         self.time_since_update = 0

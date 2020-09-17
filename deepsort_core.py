@@ -29,7 +29,6 @@ class DeepSort(object):
     def track(self, detections, im):
 
         tracks = self.deepsort_tracker.update_tracks(detections)
-        tracks = self.segmentor.segment_bboxes(tracks, im)
         tracks = self.deepsort_tracker.calculate_track_xyz_pos(self.cam2world, tracks, self.target_height)
 
         return tracks

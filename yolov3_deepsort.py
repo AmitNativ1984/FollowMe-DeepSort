@@ -107,19 +107,6 @@ class Tracker(object):
                     xyz_pos.append(track.xyz_pos)
                     cls_names.append(track.cls_id)
 
-                    blue, green, red = cv2.split(ori_im)
-                    x0, y0, x1, y1 = track.to_tlbr().astype(np.int)
-                    x0, x1 = np.clip([x0, x1], a_min=0, a_max=im.shape[1])
-                    y0, y1 = np.clip([y0, y1], a_min=0, a_max=im.shape[0])
-
-                    h = y1 - y0
-                    w = x1 - x0
-                    if track.cls_id == 0:
-                        red[y0:y0+h, x0:x0+w][track.mask !=0] = track.mask[track.mask !=0] * 255
-                    else:
-                        green[y0:y0 + h, x0:x0 + w][track.mask != 0] = track.mask[track.mask != 0] * 255
-
-                    ori_im = cv2.merge((blue, green, red))
                 ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
                                     target_xyz=xyz_pos, cls_names=cls_names)
 
