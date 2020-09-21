@@ -14,3 +14,6 @@ build/
 *.mpeg
 
 
+/.idea/
+/detector/yolov3_ultralytics/weights/
+/segmentor/pytorch_deeplab/weights/

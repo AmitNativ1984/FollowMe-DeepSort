@@ -22,10 +22,6 @@ class Tracker(object):
         if not use_cuda:
             raise UserWarning("Running in cpu mode!")
 
-        if args.display:
-            cv2.namedWindow("test", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("test", args.display_width, args.display_height)
-
         self.cfg.CLS_DICT.pop('merge_from_dict')
         self.cfg.CLS_DICT.pop('merge_from_file')
         self.cls_dict = dict(zip([int(k) for k in list(cfg.CLS_DICT.keys())], cfg.CLS_DICT.values()))
@@ -50,14 +46,30 @@ class Tracker(object):
 
     def run(self):
         VISUALIZE_DETECTIONS = True
-
+        plt.ion()
         new_traget_raw = True
         U = np.array([[0], [0], [0], [0]])
-        # map_projection_fig = plt.figure()
-        # ax_map = map_projection_fig.add_subplot(111)
-        # ax_map.set_aspect('equal', 'box')
-        # ax_map.grid(True)
-        # radar_fig, ax_polar, ax_carthesian = create_radar_plot()
+
+
+        fig3Dtracking = plt.figure(constrained_layout=True, figsize=(6*3,3*3))
+        figGridSpec = fig3Dtracking.add_gridspec(nrows=3, ncols=2, left=0.05, right=0.48, wspace=0.05)
+        figImage = fig3Dtracking.add_subplot(figGridSpec[:2, :])
+        figMap = fig3Dtracking.add_subplot(figGridSpec[-1, 0])
+        figMap.set_aspect('equal', 'box')
+        figMap.grid(True)
+        figRadar = fig3Dtracking.add_subplot(figGridSpec[-1, -1], projection='polar')
+        figRadar.set_aspect('equal', 'box')
+
+        figRadar.set_theta_direction(-1)
+        figRadar.set_theta_zero_location("N")
+        figRadar.set_rlabel_position(90)
+        figRadar.set_rlim(bottom=0, top=30)
+
+        # figRadar.set_ylim(0, max(ylim))
+
+        plt.tight_layout()
+
+        # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=figRadar, ax_polar=figRadar, ax_carthesian=figRadar)
 
         for frame, sample in enumerate(self.data_loader):
             start_time = time.time()
@@ -71,8 +83,10 @@ class Tracker(object):
             tracking_time = time.time()
 
             # draw boxes for visualization
-            # kalman filter predictions on detection [0]
-            if VISUALIZE_DETECTIONS:
+            if args.display:
+                if frame == 0:
+                    image_ax = figImage.imshow(ori_im)
+
                 ori_im = draw_boxes(ori_im,
                                     [detection.to_tlbr() for detection in detections],
                                     confidence=[detection.confidence for detection in detections],
@@ -82,11 +96,9 @@ class Tracker(object):
                                     color=[255, 255, 0])
                 # ax_map.scatter(target_utm_temp[0], target_utm_temp[1], marker='^', color='g', s=15)
 
-            # for i, target in enumerate(outputs):
-            #     print('\t\t track id: [{}] \t [{}] \t ({},{},{},{})\t'
-            #           .format(target[-1], self.cls_dict[target[-2]], target[0], target[1], target[2], target[3]))
-
             if self.args.display:
+                figMap.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
+                               marker='o', color='b', alpha=0.5)
                 if len(tracks) > 0:
                     confidence = [track.confidence for track in tracks]
                     track_id = [track.track_id for track in tracks]
@@ -106,19 +118,42 @@ class Tracker(object):
                                         cls_names=cls_names,
                                         color=[255, 0, 0])
 
+                    figMap.scatter(utm_pos[0][0], utm_pos[0][1], marker='^',
+                                   color='r', alpha=0.5)
 
-                cv2.imshow("test", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
-                key = cv2.waitKey(1)
-                # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=radar_fig, ax_polar=ax_polar,
-                #                                                        ax_carthesian=ax_carthesian)
-                # ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1], marker='o', color='b', alpha=0.5)
+                    figRadar.cla()
+                    figRadar.set_theta_direction(-1)
+                    figRadar.set_rlabel_position(90)
+                    figRadar.set_rlim(bottom=0, top=20)
+                    figRadar.set_theta_zero_location("N")#, offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
+                    relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(bbox_tlbr[0])
+                    Rz = relxyz[1]
+                    Rx = relxyz[0]
+                    R = np.sqrt(Rz ** 2 + Rx ** 2)
+                    theta_deg = np.arctan2(Rx, Rz)
+                    figRadar.scatter(theta_deg+sample["telemetry"]["yaw_pitch_roll"][0][0], R)
+
+                    figRadar.set_theta_zero_location(
+                        "N")#, offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
+                    #
+                    # figRadar.set_thetagrids(np.linspace(-self.args.thetaX/2, self.args.thetaX/2, num=5) +
+                    #                         np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
+
+                    # figRadar.set_thetamin(int(-self.args.thetaX/2 + np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0])))
+                    # figRadar.set_thetamax(int(+self.args.thetaX/2 + np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0])))
+
+
+
+                image_ax.set_data(ori_im)
+
 
                 end_time = time.time()
                 print('frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(frame, (end_time - start_time) * 1E3, (tracking_time-start_time) * 1E3, (end_time - tracking_time) * 1E3))
-            plt.pause(0.1)
-
+                plt.pause(0.000001)
             if self.args.save_path:
                 self.writer.write(ori_im)
+
+            plt.ioff()
 
 
     def DeepSort(self, sample, camera2world):
@@ -147,7 +182,7 @@ def parse_args():
     parser.add_argument("--data", type=str, help='folder containing all recorded data')
     parser.add_argument("--batch-size", type=int, default=1, help='folder containing all recorded data')
     parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
-    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort_utm.yaml")
+    parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--config_sensors", type=str, default="./configs/sensors.yaml")
     parser.add_argument("--ignore_display", dest="display", action="store_false", default=True)
     parser.add_argument("--display_width", type=int, default=800)
