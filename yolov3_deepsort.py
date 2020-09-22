@@ -60,8 +60,6 @@ class Tracker(object):
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
-            ori_im = np.concatenate((ori_im, ori_im, ori_im, ori_im), 1)
-            ori_im = ori_im[:416, :]
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             tracks, detections = self.DeepSort(im, target_cls)
@@ -137,7 +135,7 @@ class Tracker(object):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", type=str, default='')
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
+    # parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
@@ -161,7 +159,7 @@ def parse_args():
 if __name__=="__main__":
     args = parse_args()
     cfg = get_config()
-    cfg.merge_from_file(args.config_detection)
+    # cfg.merge_from_file(args.config_detection)
     cfg.merge_from_file(args.config_deepsort)
 
     torch.set_num_threads(cfg.NUM_CPU_CORES)
