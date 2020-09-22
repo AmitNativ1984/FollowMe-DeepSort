@@ -10,6 +10,23 @@ import torchvision
 
 from model import Net
 
+
+def make_weights_for_balanced_classes(images, nclasses):
+    count = [0] * nclasses
+    for item in images:
+        count[item[1]] += 1
+    weight_per_class = [0.] * nclasses
+    N = float(sum(count))
+    for i in range(nclasses):
+        weight_per_class[i] = N/float(count[i])
+    weight = [0] * len(images)
+    for idx, val in enumerate(images):
+        weight[idx] = weight_per_class[val[1]]
+    return weight
+
+
+
+
 parser = argparse.ArgumentParser(description="Train on market1501")
 parser.add_argument("--data-dir",default='data',type=str)
 parser.add_argument("--no-cuda",action="store_true")
@@ -17,6 +34,7 @@ parser.add_argument("--gpu-id",default=0,type=int)
 parser.add_argument("--lr",default=0.1, type=float)
 parser.add_argument("--interval",'-i',default=20,type=int)
 parser.add_argument('--resume', '-r',action='store_true')
+parser.add_argument("--ckpt", type=str, default='ckpt.t7')
 args = parser.parse_args()
 
 # device
@@ -29,7 +47,8 @@ root = args.data_dir
 train_dir = os.path.join(root,"train")
 test_dir = os.path.join(root,"test")
 transform_train = torchvision.transforms.Compose([
-    torchvision.transforms.RandomCrop((128,64),padding=4),
+torchvision.transforms.Resize((128,64)),
+    # torchvision.transforms.RandomCrop((128,64),padding=4),
     torchvision.transforms.RandomHorizontalFlip(),
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -39,9 +58,16 @@ transform_test = torchvision.transforms.Compose([
     torchvision.transforms.ToTensor(),
     torchvision.transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
+
+dataset_train = torchvision.datasets.ImageFolder(train_dir, transform=transform_train)
+weights = make_weights_for_balanced_classes(dataset_train.imgs, len(dataset_train.classes))
+weights = torch.DoubleTensor(weights)
+sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+
 trainloader = torch.utils.data.DataLoader(
-    torchvision.datasets.ImageFolder(train_dir, transform=transform_train),
-    batch_size=64,shuffle=True
+    dataset_train,
+    sampler=sampler,
+    batch_size=64, pin_memory=True
 )
 testloader = torch.utils.data.DataLoader(
     torchvision.datasets.ImageFolder(test_dir, transform=transform_test),
@@ -53,9 +79,9 @@ num_classes = len(trainloader.dataset.classes)
 start_epoch = 0
 net = Net(num_classes=num_classes)
 if args.resume:
-    assert os.path.isfile("./checkpoint/ckpt.t7"), "Error: no checkpoint file found!"
-    print('Loading from checkpoint/ckpt.t7')
-    checkpoint = torch.load("./checkpoint/ckpt.t7")
+    assert os.path.isfile("./checkpoint/" + args.ckpt), "Error: no checkpoint file found!"
+    print('Loading from {}'.format("./checkpoint/" + args.ckpt))
+    checkpoint = torch.load("./checkpoint/" + args.ckpt)
     # import ipdb; ipdb.set_trace()
     net_dict = checkpoint['net_dict']
     net.load_state_dict(net_dict)
@@ -63,10 +89,12 @@ if args.resume:
     start_epoch = checkpoint['epoch']
 net.to(device)
 
+
 # loss and optimizer
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD(net.parameters(), args.lr, momentum=0.9, weight_decay=5e-4)
 best_acc = 0.
+
 
 # train function for each epoch
 def train(epoch):
@@ -133,7 +161,7 @@ def test(epoch):
     acc = 100.*correct/total
     if acc > best_acc:
         best_acc = acc
-        print("Saving parameters to checkpoint/ckpt.t7")
+        print("Saving parameters to {}".format("./checkpoint/" + args.ckpt))
         checkpoint = {
             'net_dict':net.state_dict(),
             'acc':acc,
@@ -141,7 +169,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(checkpoint, './checkpoint/ckpt.t7')
+        torch.save(checkpoint, "./checkpoint/" + args.ckpt)
 
     return test_loss/len(testloader), 1.- correct/total
 

@@ -124,7 +124,7 @@ class Tracker:
 
             return cost_matrix
 
-        # Split track set into confirmed and unconfirmed tracks (after n frames initializing or before)
+        # Split track set into confirmed and unconfirmed tracks.
         confirmed_tracks = [
             i for i, t in enumerate(self.tracks) if t.is_confirmed()]
         unconfirmed_tracks = [

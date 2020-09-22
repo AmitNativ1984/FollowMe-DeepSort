@@ -83,6 +83,9 @@ class Track:
         self.utm_pos = detection.to_utm()
         self.detection_conf = detection.confidence
 
+        self.xyz_pos = 0.0
+        self.detection_tlbr = []
+
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
         width, height)`.
@@ -111,6 +114,16 @@ class Track:
         ret = self.to_tlwh()
         ret[2:] = ret[:2] + ret[2:]
         return ret
+
+    def to_xyz(self, cam2world, obj_height_meters):
+        tlbr = self.to_tlbr()
+        self.xyz_pos = cam2world.obj_world_xyz(x1=tlbr[0],
+                                          y1=tlbr[1],
+                                          x2=tlbr[2],
+                                          y2=tlbr[3],
+                                          obj_height_meters=obj_height_meters)
+
+        return self.xyz_pos
 
     def predict(self, kf):
         """Propagate the state distribution to the current time step using a

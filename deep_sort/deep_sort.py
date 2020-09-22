@@ -1,22 +1,23 @@
 import numpy as np
-import torch
-from .deep.feature_extractor import Extractor
+
+from .deep.feature_extractor import Extractor, ExtractorVehicle
 from .sort.nn_matching import NearestNeighborDistanceMetric
 from .sort.preprocessing import non_max_suppression
 from .sort.detection import Detection
 from .sort.tracker import Tracker
+import torch
 
 
 __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    def __init__(self, model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
+    def __init__(self, model_path, vehicle_model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 
         self.extractor = Extractor(model_path, use_cuda=use_cuda)
-
+        self.vehicle_extractor = ExtractorVehicle(vehicle_model_path, use_cuda=use_cuda)
         max_cosine_distance = max_dist
         # nn_budget = 100
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
@@ -24,11 +25,10 @@ class DeepSort(object):
 
     def update(self, camera2world, bbox_xywh, confidences, cls_ids, ori_img):
         self.height, self.width = ori_img.shape[:2]
-
-        # generate detections in Detection class
-        features = self._get_features(bbox_xywh, ori_img)   # get recognition features for every bbox
+        # generate detections
+        features = self._get_features(bbox_xywh, ori_img, cls_ids)   # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
-        detections = [Detection(camera2world, bbox_tlwh[i], conf, int(cls_ids[i]), features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
+        detections = [Detection(camera2world, bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
 
         # run on non-maximum supression
         boxes = np.array([d.tlwh for d in detections])
@@ -41,14 +41,21 @@ class DeepSort(object):
         self.tracker.update(detections)     # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
-        outputs = []
+        output_tracks = []
+        detections_conf = []
+        detections_cls_id = []
         for track in self.tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
+            if not track.is_confirmed() or track.time_since_update > 0:
                 continue
+            box = track.to_tlwh()
+            x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
+            track_id = track.track_id
+            detections_conf.append(track.confidence)
+            detections_cls_id.append(track.cls_id)
+            # output_tracks.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
+            output_tracks.append(track)
 
-            outputs.append(track)
-
-        return outputs, detections
+        return output_tracks, detections
 
     """
     TODO:
@@ -64,6 +71,7 @@ class DeepSort(object):
         bbox_tlwh[:,0] = bbox_xywh[:,0] - bbox_xywh[:,2]/2.
         bbox_tlwh[:,1] = bbox_xywh[:,1] - bbox_xywh[:,3]/2.
         return bbox_tlwh
+
 
     def _xywh_to_xyxy(self, bbox_xywh):
         x,y,w,h = bbox_xywh
@@ -86,16 +94,43 @@ class DeepSort(object):
         y2 = min(int(y+h),self.height-1)
         return x1,y1,x2,y2
     
-    def _get_features(self, bbox_xywh, ori_img):
+    def _get_features(self, bbox_xywh, ori_img, cls_ids):
         im_crops = []
-        for box in bbox_xywh:
+        im_crops_vehicles = []
+        person_inds = []
+        vehicle_inds = []
+        for ind, (box, cls_id) in enumerate(zip(bbox_xywh, cls_ids)):
             x1,y1,x2,y2 = self._xywh_to_xyxy(box)
             im = ori_img[y1:y2,x1:x2]
-            im_crops.append(im)
+            if cls_id == 0:
+                person_inds.append(ind)
+                im_crops.append(im)
+            else:
+                vehicle_inds.append(ind)
+                im_crops_vehicles.append(im)
+
         if im_crops:
-            features = self.extractor(im_crops)
+            person_features = self.extractor(im_crops)
+            # making person and vechiles orthogonal for cosine similarity
+            person_features = np.hstack((person_features, np.zeros_like(person_features)))
         else:
-            features = np.array([])
+            person_features = np.array([])
+
+        if im_crops_vehicles:
+            vehicle_features = self.vehicle_extractor(im_crops_vehicles)
+            # making person and vechiles orthogonal for cosine similarity
+            vehicle_features = np.hstack((vehicle_features, np.zeros_like(vehicle_features)))
+        else:
+            vehicle_features = np.array([])
+
+        # concatenating features
+        features = np.zeros((len(person_inds) + len(vehicle_inds), max(np.shape(person_features)[-1], np.shape(vehicle_features)[-1])))
+        if person_inds:
+            features[person_inds, :] = person_features
+
+        if vehicle_inds:
+            features[vehicle_inds, :] = vehicle_features
+
         return features
 
 

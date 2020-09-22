@@ -1,7 +1,8 @@
+import numpy as np
+import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-import numpy as np
 
 
 palette = (2 ** 11 - 1, 2 ** 15 - 1, 2 ** 20 - 1)
@@ -21,31 +22,37 @@ def compute_color_for_labels(label, target_id):
     return tuple(color)
 
 
-def draw_boxes(img, bbox, confidence=None, track_id=None, target_xyz=None, cls_names=None, offset=(0,0),
-               color=None):
-    for i, box in enumerate(bbox):
-        x1, y1, x2, y2 = np.array(box).astype(np.int)
+def draw_boxes(img, bbox, identities=None, offset=(0,0), confs=None, target_id=None, target_xyz=None, cls_names=None,
+               clr=None):
+    for i,box in enumerate(bbox):
+        x1,y1,x2,y2 = [int(i) for i in box]
         x1 += offset[0]
         x2 += offset[0]
         y1 += offset[1]
         y2 += offset[1]
+        # box text and bar
+        id = int(identities[i]) if identities is not None else 0
+        if clr==None:
+            color = compute_color_for_labels(id, target_id)
+        else:
+            color=clr
 
-        t_size = cv2.getTextSize(str(track_id[i]), cv2.FONT_HERSHEY_DUPLEX, 0.5, 2)[0]
-        cv2.rectangle(img, (x1, y1), (x2,y2), color, 3)
-        cv2.rectangle(img, (x1, y1), (x1 + t_size[0] + 3, y1 + t_size[1] + 4), color, -1)
-        cv2.putText(img, str(track_id[i]), (x1, y1 + t_size[1] + 4), cv2.FONT_HERSHEY_DUPLEX, 0.5, [255, 255, 255], 1)
+        if (identities) is not None:
+            label = '{}{:d}'.format("", id)
+        else:
+            label = ""
 
-
-        if confidence:
-            cv2.putText(img, '{}{:.3f}'.format("conf:", confidence[i]), (x1, y2 + 2 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
-        if cls_names:
-            cv2.putText(img, '{}'.format(cls_names[i]), (x1, y2 + 4 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
-
-        if target_xyz:# is not None:
-            utm_str = "(" + ", ".join(
-                [str(coord) for coord in list(np.round(target_xyz[i].transpose().squeeze(), 3))]) + ")"
-            cv2.putText(img, utm_str,
-                        (x1, y2 + 6 * t_size[1]), cv2.FONT_HERSHEY_DUPLEX, 0.5, color, 2)
+        t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_PLAIN, 2 , 2)[0]
+        cv2.rectangle(img,(x1, y1),(x2,y2),color,3)
+        cv2.rectangle(img,(x1, y1),(x1+t_size[0]+3,y1+t_size[1]+4), color,-1)
+        cv2.putText(img,label,(x1,y1+t_size[1]+4), cv2.FONT_HERSHEY_PLAIN, 2, [255,255,255], 2)
+        if confs:
+            t_size = cv2.getTextSize('{}({:.2f}, {:.2f}, {:.2f})[m]'.format(" ", target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]), cv2.FONT_HERSHEY_PLAIN, 2, 2)[0]
+            cv2.rectangle(img, (x1, y2), (x1 + t_size[0] + 3,  y2 + t_size[1] * 7), color, 1)
+            cv2.putText(img, '{}{:.3f}'.format("conf:", confs[i]), (x1, y2 + 2 * t_size[1]), cv2.FONT_HERSHEY_PLAIN, 2, [255,255,255], 2)
+            cv2.putText(img, '{}'.format(cls_names[i]), (x1, y2 + 4 * t_size[1]), cv2.FONT_HERSHEY_PLAIN, 2, [255,255,255], 2)
+            cv2.putText(img, '({:.2f}, {:.2f}, {:.2f})[m]'.format(target_xyz[i][0], target_xyz[i][1], target_xyz[i][2]),
+                        (x1, y2 + 6 * t_size[1]), cv2.FONT_HERSHEY_PLAIN, 2, [255, 255, 255], 2)
 
     return img
 
