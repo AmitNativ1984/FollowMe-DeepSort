@@ -148,6 +148,9 @@ class Track:
         # todo: handle last coordinate in utm:..->
         self.utm_pos = np.vstack((self.mean[:2], detection.to_utm()[-1]))
         self.bbox_tlwh = detection.project_utm_to_bbox_tlwh(self.utm_pos)
+        self.bbox_tlbr = self.bbox_tlwh.copy()
+        self.bbox_tlbr[2] = self.bbox_tlwh[0] + self.bbox_tlwh[2]
+        self.bbox_tlbr[3] = self.bbox_tlwh[1] + self.bbox_tlwh[3]
 
         self.hits += 1
         self.time_since_update = 0

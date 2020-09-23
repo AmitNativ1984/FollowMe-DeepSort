@@ -1,48 +1,29 @@
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
-def create_radar_plot(xlim=(-25, 25), ylim=(-25, 25)):
-    # setting up canvas for polar and cartesian plot:
+fig, ax = plt.subplots()
 
-    radar_fig = plt.figure()
-    # setting the axis limits in [left, bottom, width, height]
-    rect = [0.1, 0.1, 0.8, 0.8]
-
-    # the carthesian axis:
-    ax_carthesian = radar_fig.add_axes(rect)
-    ax_carthesian.set_xlim(xlim)
-    ax_carthesian.set_ylim(ylim)
-    ax_carthesian.set_aspect('equal')
-
-    # the polar axis:
-    ax_polar = radar_fig.add_axes(rect, polar=True, frameon=False)
-    ax_polar.set_theta_zero_location("N")
-    ax_polar.set_rlabel_position(90)
-    ax_polar.set_ylim(0, max(ylim))
+x = np.arange(0, 2*np.pi, 0.01)
+line, = ax.plot(x, np.sin(x))
 
 
-    ticklabelpad = mpl.rcParams['xtick.major.pad']
+def animate(i):
+    line.set_ydata(np.sin(x + i / 50))  # update the data.
+    return line,
 
 
-    ax_carthesian.annotate('[m]', xy=(1, 0), xytext=(5, -ticklabelpad), ha='left', va='top',
-                xycoords='axes fraction', textcoords='offset points')
+ani = animation.FuncAnimation(
+    fig, animate, interval=1, blit=True, save_count=50)
 
-    ticklabelpad = mpl.rcParams['ytick.major.pad']
-    ax_carthesian.annotate('[m]', xy=(0, 1), xytext=(-5, ticklabelpad), ha='right', va='top',
-                           xycoords='axes fraction', textcoords='offset points')
+# To save the animation, use e.g.
+#
+# ani.save("movie.mp4")
+#
+# or
+#
+# writer = animation.FFMpegWriter(
+#     fps=15, metadata=dict(artist='Me'), bitrate=1800)
+# ani.save("movie.mp4", writer=writer)
 
-    ax_polar.set_rmax(max(ylim))
-    plt.rgrids((5, 10, 15, 20))
-    ax_polar.grid(True)
-
-    # plt.show()
-
-    return radar_fig, ax_polar, ax_carthesian
-
-if __name__ == '__main__':
-    fig, ax_polar, ax_carthesian = create_radar_plot()
-    line = 50 * np.random.rand(50) - 25.
-    # ax_carthesian.plot(range(len(line)), line, 'b')
-    # ax_carthesian.scatter([0, 1], [10, 15], marker='x', color='r')?
-    plt.show()
+plt.show()

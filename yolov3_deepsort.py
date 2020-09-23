@@ -25,10 +25,6 @@ class Tracker(object):
         if not use_cuda:
             raise UserWarning("Running in cpu mode!")
 
-        if args.display:
-            cv2.namedWindow("test", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("test", args.display_width, args.display_height)
-
         kwargs = {'batch_size': args.batch_size, 'pin_memory': True}
         dataset = ProbotSensorsDataset(args)
         self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
@@ -43,20 +39,6 @@ class Tracker(object):
         self.bbox_xyxy = []
         self.target_id = []
 
-    def __enter__(self):
-        assert os.path.isfile(self.args.video_path), "Error: path error"
-        self.vdo.open(self.args.video_path)
-        self.im_width = int(self.vdo.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.im_height = int(self.vdo.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-        if self.args.save_path:
-            fourcc =  cv2.VideoWriter_fourcc(*'XVID')
-            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width,self.im_height))
-
-        assert self.vdo.isOpened()
-        return self
-
-
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
             print(exc_type, exc_value, exc_traceback)
@@ -68,21 +50,17 @@ class Tracker(object):
         U = np.array([[0], [0], [0], [0]])
 
 
-        fig3Dtracking = plt.figure(constrained_layout=True, figsize=(6*3,3*3))
-        figGridSpec = fig3Dtracking.add_gridspec(nrows=3, ncols=2, left=0.05, right=0.48, wspace=0.05)
-        figImage = fig3Dtracking.add_subplot(figGridSpec[:2, :])
-        figMap = fig3Dtracking.add_subplot(figGridSpec[-1, 0])
-        figMap.set_aspect('equal', 'box')
-        figMap.grid(True)
-        figRadar = fig3Dtracking.add_subplot(figGridSpec[-1, -1], projection='polar')
-        figRadar.set_aspect('equal', 'box')
+        fig3Dtracking = plt.figure()
+        ax_map = fig3Dtracking.add_subplot(2, 1, 1)
+        ax_map.set_aspect('equal', 'box')
+        ax_map.grid(True)
 
-        figRadar.set_theta_direction(-1)
-        figRadar.set_theta_zero_location("N")
-        figRadar.set_rlabel_position(90)
-        figRadar.set_rlim(bottom=0, top=30)
-
-        # figRadar.set_ylim(0, max(ylim))
+        ax_radar = fig3Dtracking.add_subplot(2, 1, 2, projection='polar')
+        ax_radar.set_aspect('equal', 'box')
+        ax_radar.set_theta_direction(-1)
+        ax_radar.set_theta_zero_location("N")
+        ax_radar.set_rlabel_position(90)
+        ax_radar.set_rlim(bottom=0, top=30)
 
         plt.tight_layout()
 
@@ -101,100 +79,69 @@ class Tracker(object):
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
-                if frame == 0:
-                    image_ax = figImage.imshow(ori_im)
-
                 DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
                 DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
                 DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
                 bbox_xyxy = DetectionsBBOXES[:, :4]
                 ori_im = draw_boxes(ori_im,
                                     [detection.to_tlbr() for detection in detections],
-                                    confidence=[detection.confidence for detection in detections],
-                                    track_id=[""] * np.shape(detections)[0],
+                                    confs=[detection.confidence for detection in detections],
+                                    target_id=[""] * np.shape(detections)[0],
                                     target_xyz=[detection.to_utm() for detection in detections],
                                     cls_names=[self.cls_dict[int(detection.cls_id)] for detection in detections],
-                                    color=[255, 255, 0])
+                                    clr=[255, 255, 0])
 
-            if len(tracks) > 0:
-                bbox_xyxy = []
-                identities = []
-                confs = []
-                xyz_pos = []
+            if self.args.display and len(tracks) > 0 and args.debug_mode:
+                # ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
+                #                marker='o', color='b', alpha=0.5)
+
+                confidence = []
+                track_id = []
                 cls_names = []
+                utm_pos = []
+                bbox_tlbr = []
 
-                for track in tracks:
-                    bbox_xyxy.append(track.to_tlbr())
-                    identities.append(track.track_id)
-                    confs.append(track.confidence)
-                    xyz_pos.append(track.xyz_pos)
+                for ind, track in enumerate(tracks):
+                    confidence.append(track.confidence)
+                    track_id.append(track.track_id)
                     cls_names.append(track.cls_id)
+                    utm_pos.append(track.utm_pos)
+                    bbox_tlbr.append([track.bbox_tlbr])
+
+                ori_im = draw_boxes(ori_im,
+                                    bbox_tlbr[0],
+                                    confs=confidence,
+                                    target_id=track_id,
+                                    target_xyz=utm_pos,
+                                    cls_names=cls_names,
+                                    clr=[255, 0, 0])
+
+                # ax_map.scatter(utm_pos[0][0], utm_pos[0][1], marker='^',
+                #                color='r', alpha=0.5)
+                #
+                # ax_radar.cla()
+                # ax_radar.set_theta_direction(-1)
+                # ax_radar.set_rlabel_position(90)
+                # ax_radar.set_rlim(bottom=0, top=20)
+                # ax_radar.set_theta_zero_location("N")#, offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
+                # relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(bbox_tlbr[0])
+                # Rz = relxyz[1]
+                # Rx = relxyz[0]
+                # R = np.sqrt(Rz ** 2 + Rx ** 2)
+                # theta_deg = np.arctan2(Rx, Rz)
+                # ax_radar.scatter(theta_deg+sample["telemetry"]["yaw_pitch_roll"][0][0], R)
+
+            cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
+            cv2.waitKey(1)
 
 
-                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
-                                    target_xyz=xyz_pos, cls_names=cls_names)
-
-            if args.display:
-                cv2.imshow("test", ori_im)
-                key = cv2.waitKey(1)
-            if self.args.display:
-                figMap.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
-                               marker='o', color='b', alpha=0.5)
-                if len(tracks) > 0:
-                    confidence = [track.confidence for track in tracks]
-                    track_id = [track.track_id for track in tracks]
-                    cls_names = [self.cls_dict[int(track.cls_id)] for track in tracks]
-                    utm_pos = [track.utm_pos for track in tracks]
-
-                    bbox_tlwh = np.array([track.bbox_tlwh for track in tracks])
-                    bbox_tlbr = bbox_tlwh
-                    bbox_tlbr[:, 2] = bbox_tlwh[:, 0] + bbox_tlwh[:, 2]
-                    bbox_tlbr[:, 3] = bbox_tlwh[:, 1] + bbox_tlwh[:, 3]
-
-                    ori_im = draw_boxes(ori_im,
-                                        bbox_tlbr,
-                                        confidence=confidence,
-                                        track_id=track_id,
-                                        target_xyz=utm_pos,
-                                        cls_names=cls_names,
-                                        color=[255, 0, 0])
-
-                    figMap.scatter(utm_pos[0][0], utm_pos[0][1], marker='^',
-                                   color='r', alpha=0.5)
-
-                    figRadar.cla()
-                    figRadar.set_theta_direction(-1)
-                    figRadar.set_rlabel_position(90)
-                    figRadar.set_rlim(bottom=0, top=20)
-                    figRadar.set_theta_zero_location("N")#, offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
-                    relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(bbox_tlbr[0])
-                    Rz = relxyz[1]
-                    Rx = relxyz[0]
-                    R = np.sqrt(Rz ** 2 + Rx ** 2)
-                    theta_deg = np.arctan2(Rx, Rz)
-                    figRadar.scatter(theta_deg+sample["telemetry"]["yaw_pitch_roll"][0][0], R)
-
-                    figRadar.set_theta_zero_location(
-                        "N")#, offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
-                    #
-                    # figRadar.set_thetagrids(np.linspace(-self.args.thetaX/2, self.args.thetaX/2, num=5) +
-                    #                         np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
-
-                    # figRadar.set_thetamin(int(-self.args.thetaX/2 + np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0])))
-                    # figRadar.set_thetamax(int(+self.args.thetaX/2 + np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0])))
-
-
-
-                image_ax.set_data(ori_im)
-
-
-                end_time = time.time()
-                print('frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(frame, (end_time - start_time) * 1E3, (tracking_time-start_time) * 1E3, (end_time - tracking_time) * 1E3))
-                plt.pause(0.000001)
-            if self.args.save_path:
-                self.writer.write(ori_im)
-
-            print("frame: %d"%(frame))
+            # plt.pause(0.05)
+            # time.sleep(0.001)
+            end_time = time.time()
+            print(
+                'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
+                    frame, (end_time - start_time) * 1E3, (tracking_time - start_time) * 1E3,
+                    (end_time - tracking_time) * 1E3))
             frame += 1
 
         if self.args.save_path:
@@ -258,7 +205,7 @@ if __name__=="__main__":
     torch.set_num_threads(cfg.NUM_CPU_CORES)
     print("Using {} CPU cores".format(torch.get_num_threads()))
 
-    with Tracker(cfg, args) as tracker:
-        tracker.run()
+    tracker = Tracker(cfg, args)
+    tracker.run()
 
     plt.show()

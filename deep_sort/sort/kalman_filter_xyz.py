@@ -48,10 +48,10 @@ class KalmanXYZ(object):
             9: 16.919}
 
 
-        sigmaPosX = 1
-        sigmaPosY = 1
-        sigmaVelX = 10
-        sigmaVelY = 10
+        sigmaPosX = 2
+        sigmaPosY = 2
+        sigmaVelX = 20
+        sigmaVelY = 20
 
         self.P = np.array([[sigmaPosX,      0.,      0.,      0.],
                            [0.,       sigmaPosY,     0.,      0.],
@@ -63,8 +63,8 @@ class KalmanXYZ(object):
                            [0.,     1.,      0.,      0.]])
 
         # image detection noise (in meters)
-        sensor_acc_X = 0.5
-        sensor_acc_Y = 0.5
+        sensor_acc_X = 0.2
+        sensor_acc_Y = 0.2
         self.R = np.array([[sensor_acc_X,        0.0],
                            [0.0,        sensor_acc_Y]])
 
