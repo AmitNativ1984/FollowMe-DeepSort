@@ -170,7 +170,7 @@ class Tracker:
     def _initiate_track(self, detection):
         if UTM_TRACKING:
             new_kf = kalman_filter_xyz.KalmanXYZ()
-            mean, covariance = new_kf.initiate(detection.timestamp[0], detection.to_utm())
+            mean, covariance = new_kf.initiate(detection.timestamp, detection.utm_pos)
             self.tracks.append(Track(
                 kf=new_kf, mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
                 detection=detection))

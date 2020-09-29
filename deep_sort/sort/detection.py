@@ -29,16 +29,19 @@ class Detection(object):
 
     """
 
-    def __init__(self, camera2world, tlwh, confidence, cls_id, feature):
+    def __init__(self, tlwh, confidence, cls_id, feature):
         self.tlwh = np.asarray(tlwh, dtype=np.float)
         self.confidence = float(confidence)
         # each cls is orthogonal for other cls for cosine similarity
         feature = np.asarray(feature, dtype=np.float32)
         self.feature = feature
         self.cls_id = cls_id
-        self.camera2world = camera2world
-        self.utm_pos = self.to_utm()
-        self.timestamp = camera2world.telemetry["timestamp"]
+        # todo: update cam2world
+        self.utm_pos = []
+        self.timestamp = []
+        self.xyz_rel2cam = []
+        # self.utm_pos = self.to_utm()
+        # self.timestamp = camera2world.telemetry["timestamp"]
 
     def to_tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,
@@ -57,16 +60,14 @@ class Detection(object):
         ret[2] /= ret[3]
         return ret
 
-    def to_utm(self):
-        utm_pos = self.camera2world.convert_bbox_tlbr_to_utm_coordinates(self.to_tlbr())
-        return utm_pos
+    def update_positions_using_telemetry(self, cam2world):
+        tlbr = self.to_tlbr()
+        self.utm_pos = cam2world.convert_bbox_tlbr_to_utm_coordinates(tlbr)
+        self.xyz_rel2cam = cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(tlbr)
+        self.timestamp = cam2world.telemetry["timestamp"][0]
 
-    def to_xyz_rel2cam(self):
-        xyz = self.camera2world.convert_bbox_tlbr_to_relative_to_camera_xyz(self.to_tlbr())
-        return xyz
-
-    def project_utm_to_bbox_tlwh(self, utm_pos):
-        row, col = self.camera2world.convert_utm_coordinates_to_bbox_center(utm_pos)
+    def project_utm_to_bbox_tlwh(self, cam2world, utm_pos):
+        row, col = cam2world.convert_utm_coordinates_to_bbox_center(utm_pos)
         bbox_tlwh = self.tlwh.copy()
         bbox_tlwh[0] = col - bbox_tlwh[2]/2
         bbox_tlwh[1] = row - bbox_tlwh[3]/2

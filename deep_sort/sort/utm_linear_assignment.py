@@ -191,7 +191,7 @@ def gate_cost_matrix(
     gating_dim = 2#2 if only_position else 4
     gating_threshold = tracks[0].kf_utm.chi2inv95[gating_dim]
     measurements = np.asarray(
-        [detections[i].to_utm() for i in detection_indices]).squeeze(-1).transpose()
+        [detections[i].utm_pos for i in detection_indices]).squeeze(-1).transpose()
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
         # print(track.covariance)

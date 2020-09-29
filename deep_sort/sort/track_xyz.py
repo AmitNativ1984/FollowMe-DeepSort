@@ -82,9 +82,11 @@ class Track:
         self._max_age = max_age
         self.cls_id = detection.cls_id
         self.covariance = detection.confidence
-        self.utm_pos = detection.to_utm()
+        self.utm_pos = detection.utm_pos
         self.confidence = detection.confidence
         self.kf_utm = kf    # kalman filter
+        self.bbox_width = []
+        self.bbox_height = []
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -115,7 +117,13 @@ class Track:
         ret[2:] = ret[:2] + ret[2:]
         return ret
 
-    def predict(self, camera2world):
+    def to_x0y0wh(self):
+        ret = self.to_tlwh()
+        ret[0] = (ret[0] + ret[2])/2
+        ret[1] = (ret[1] + ret[3]) / 2
+        return ret
+
+    def predict(self, time_stamp):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
@@ -125,7 +133,7 @@ class Track:
             The Kalman filter.
 
         """
-        self.mean, self.covariance = self.kf_utm.predict(camera2world.telemetry["timestamp"][0])
+        self.mean, self.covariance = self.kf_utm.predict(time_stamp)
         self.age += 1
         self.time_since_update += 1
 
@@ -141,16 +149,18 @@ class Track:
             The associated detection.
 
         """
-        self.mean, self.covariance = self.kf_utm.update_by_measurment(detection.to_utm())
+        self.mean, self.covariance = self.kf_utm.update_by_measurment(detection.utm_pos)
         self.features.append(detection.feature)
         self.confidence = detection.confidence
         self.cls_id = detection.cls_id
         # todo: handle last coordinate in utm:..->
-        self.utm_pos = np.vstack((self.mean[:2], detection.to_utm()[-1]))
-        self.bbox_tlwh = detection.project_utm_to_bbox_tlwh(self.utm_pos)
-        self.bbox_tlbr = self.bbox_tlwh.copy()
-        self.bbox_tlbr[2] = self.bbox_tlwh[0] + self.bbox_tlwh[2]
-        self.bbox_tlbr[3] = self.bbox_tlwh[1] + self.bbox_tlwh[3]
+        self.utm_pos = np.vstack((self.mean[:2], detection.utm_pos[-1]))
+        # self.bbox_tlwh = detection.project_utm_to_bbox_tlwh(self.utm_pos)
+
+        x0y0ah = detection.to_xyah()
+        self.bbox_height = x0y0ah[-1]
+        self.bbox_width = x0y0ah[2] * self.bbox_height
+
 
         self.hits += 1
         self.time_since_update = 0

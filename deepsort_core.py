@@ -9,10 +9,10 @@ class DeepSort(object):
         self.cam2world = cam2world
         self.target_height = target_height
 
-    def detect(self, im):
+    def detect(self, img):
 
         # do detection
-        bbox_xywh, cls_conf, cls_ids = self.detector(im)  # get all detections from image
+        bbox_xywh, cls_conf, cls_ids = self.detector(img)  # get all detections from image
 
         detections = []
         # select supported classes
@@ -21,7 +21,7 @@ class DeepSort(object):
         cls_conf = cls_conf[0][mask]
         cls_ids = cls_ids[0][mask]
 
-        detections = self.deepsort_tracker.detect(bbox_xywh, cls_conf, cls_ids, im)
+        detections = self.deepsort_tracker.detect(bbox_xywh, cls_conf, cls_ids, img)
         return detections
 
     def track(self, detections, im):

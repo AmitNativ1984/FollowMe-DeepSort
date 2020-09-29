@@ -10,12 +10,11 @@ import ctypes
 from ctypes import POINTER, c_uint8, cast
 
 from deep_sort.dataloaders.vehicle_sensors_dataloader import ProbotSensorsDataset
-from detector import build_detector
-from deep_sort import build_tracker
+from deep_sort.deep_sort import DeepSort
 from utils.draw import draw_boxes, create_radar_plot
 from utils.parser import get_config
 from utils.camera2world import Cam2World
-from deep_sort.sort.kalman_filter_xyz import KalmanXYZ
+# from deepsort_core import DeepSort
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -33,11 +32,9 @@ class Tracker(object):
 
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
         self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, use_cuda=use_cuda)
-        self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
-        self.class_names = self.detector.class_names
         self.bbox_xyxy = []
         self.target_id = []
+        self.DeepSort = DeepSort(self.cfg, use_cuda=use_cuda)
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
@@ -74,26 +71,33 @@ class Tracker(object):
             self.cam2world.digest_new_telemetry(sample["telemetry"])
             ori_im = sample["image"].numpy().squeeze(0)
 
-            tracks, detections = self.DeepSort(sample, self.cam2world)
+
+            ''' ************************************** '''
+            tracks, detections = self.deepsort_core(ori_im)
+            ''' ************************************** '''
+
             tracking_time = time.time()
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
-                DetectionsBBOXES = np.array([detections[i].tlwh for i in range(np.shape(detections)[0])])
-                DetectionsBBOXES[:, 2] += DetectionsBBOXES[:, 0]
-                DetectionsBBOXES[:, 3] += DetectionsBBOXES[:, 1]
-                bbox_xyxy = DetectionsBBOXES[:, :4]
                 ori_im = draw_boxes(ori_im,
                                     [detection.to_tlbr() for detection in detections],
-                                    confs=[detection.confidence for detection in detections],
-                                    target_id=[""] * np.shape(detections)[0],
-                                    target_xyz=[detection.to_utm() for detection in detections],
-                                    cls_names=[self.cls_dict[int(detection.cls_id)] for detection in detections],
                                     clr=[255, 255, 0])
 
-            if self.args.display and len(tracks) > 0 and args.debug_mode:
-                # ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
-                #                marker='o', color='b', alpha=0.5)
+                for detection in detections:
+                    ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
+                                   marker='x', color='yellow', alpha=0.5)
+
+            if self.args.display and args.debug_mode:
+                ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
+                               marker='o', color='b', alpha=0.5)
+
+                ax_radar.cla()
+                ax_radar.set_theta_direction(-1)
+                ax_radar.set_rlabel_position(90)
+                ax_radar.set_rlim(bottom=0, top=20)
+                ax_radar.set_theta_zero_location(
+                    "N")  # , offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
 
                 confidence = []
                 track_id = []
@@ -104,38 +108,36 @@ class Tracker(object):
                 for ind, track in enumerate(tracks):
                     confidence.append(track.confidence)
                     track_id.append(track.track_id)
-                    cls_names.append(track.cls_id)
+                    cls_names.append(self.cls_dict[track.cls_id])
                     utm_pos.append(track.utm_pos)
-                    bbox_tlbr.append([track.bbox_tlbr])
+                    r0, c0 = self.cam2world.convert_utm_coordinates_to_bbox_center(track.utm_pos)
+                    tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
+                                      c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
+                    bbox_tlbr.append(tlbr)
+                    ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='^',
+                                   color='r', alpha=0.5)
+
+                    relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(tlbr)
+                    Rz = relxyz[1]
+                    Rx = relxyz[0]
+                    R = np.sqrt(Rz ** 2 + Rx ** 2)
+                    theta_deg = np.arctan2(Rx, Rz)
+                    ax_radar.scatter(theta_deg,R)# + sample["telemetry"]["yaw_pitch_roll"][0][0], R)
 
                 ori_im = draw_boxes(ori_im,
-                                    bbox_tlbr[0],
+                                    bbox_tlbr,
                                     confs=confidence,
                                     target_id=track_id,
                                     target_xyz=utm_pos,
                                     cls_names=cls_names,
                                     clr=[255, 0, 0])
 
-                # ax_map.scatter(utm_pos[0][0], utm_pos[0][1], marker='^',
-                #                color='r', alpha=0.5)
-                #
-                # ax_radar.cla()
-                # ax_radar.set_theta_direction(-1)
-                # ax_radar.set_rlabel_position(90)
-                # ax_radar.set_rlim(bottom=0, top=20)
-                # ax_radar.set_theta_zero_location("N")#, offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
-                # relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(bbox_tlbr[0])
-                # Rz = relxyz[1]
-                # Rx = relxyz[0]
-                # R = np.sqrt(Rz ** 2 + Rx ** 2)
-                # theta_deg = np.arctan2(Rx, Rz)
-                # ax_radar.scatter(theta_deg+sample["telemetry"]["yaw_pitch_roll"][0][0], R)
 
             cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
             cv2.waitKey(1)
 
 
-            # plt.pause(0.05)
+            plt.pause(0.05)
             # time.sleep(0.001)
             end_time = time.time()
             print(
@@ -149,24 +151,17 @@ class Tracker(object):
 
         plt.ioff()
 
-    def DeepSort(self, sample, camera2world):
+    def deepsort_core(self, img):
+        ''' *** THIS IS WHERE THE MAGIC HAPPENS *** '''
+        # do detection:
+        detections = self.DeepSort.detect(img)
 
-        im = sample["image"].numpy().squeeze(0)
-        tracks = []
-        detections = []
+        # udpate detections with utm coordinates using cam2world
+        for detection in detections:
+            detection.update_positions_using_telemetry(self.cam2world)
 
-        # do detection
-        bbox_xywh, cls_conf, cls_ids = self.detector(im)  # get all detections from image
-
-
-        # select person class
-        mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
-        bbox_xywh = bbox_xywh[0][mask]
-        cls_conf = cls_conf[0][mask]
-        cls_ids = cls_ids[0][mask]
-
-        # run deepsort algorithm to match detections to tracks
-        tracks, detections = self.deepsort.update(camera2world, bbox_xywh, cls_conf, cls_ids, im)
+        # associate tracks with detections
+        tracks = self.DeepSort.track(detections, timestamp=self.cam2world.telemetry["timestamp"][0])
 
         return tracks, detections
 

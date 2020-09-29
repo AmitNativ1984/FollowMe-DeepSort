@@ -25,19 +25,19 @@ def compute_color_for_labels(label, target_id):
 def draw_boxes(img, bbox, identities=None, offset=(0,0), confs=None, target_id=None, target_xyz=None, cls_names=None,
                clr=None):
     for i,box in enumerate(bbox):
-        x1,y1,x2,y2 = [int(i) for i in box]
+        x1,y1,x2,y2 = box.astype(np.int)
         x1 += offset[0]
         x2 += offset[0]
         y1 += offset[1]
         y2 += offset[1]
         # box text and bar
-        id = int(identities[i]) if identities is not None else 0
+        id = int(target_id[i]) if target_id is not None else 0
         if clr==None:
             color = compute_color_for_labels(id, target_id)
         else:
             color=clr
 
-        if (identities) is not None:
+        if (target_id) is not None:
             label = '{}{:d}'.format("", id)
         else:
             label = ""

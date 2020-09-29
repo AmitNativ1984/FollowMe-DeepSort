@@ -56,11 +56,11 @@ def iou_cost(tracks, detections, track_indices=None,
 
     cost_matrix = np.zeros((len(track_indices), len(detection_indices)))
     for row, track_idx in enumerate(track_indices):
-        if tracks[track_idx].time_since_update > 1:
+        if tracks[track_idx].time_since_update > 3:
             cost_matrix[row, :] = linear_assignment.INFTY_COST
             continue
 
         utm_pos = tracks[track_idx].mean
-        candidates = np.asarray([detections[i].to_utm() for i in detection_indices]).squeeze(-1)
+        candidates = np.asarray([detections[i].utm_pos for i in detection_indices]).squeeze(-1)
         cost_matrix[row, :] = utm_dist(utm_pos, candidates)
     return cost_matrix

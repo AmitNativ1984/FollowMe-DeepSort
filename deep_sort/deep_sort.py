@@ -1,5 +1,6 @@
 import numpy as np
-
+from detector import build_detector
+# from . import build_tracker
 from .deep.feature_extractor import Extractor, ExtractorVehicle
 from .sort.nn_matching import NearestNeighborDistanceMetric
 from .sort.preprocessing import non_max_suppression
@@ -12,23 +13,45 @@ __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    def __init__(self, model_path, vehicle_model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
-        self.min_confidence = min_confidence
-        self.nms_max_overlap = nms_max_overlap
+    def __init__(self, cfg, use_cuda=True):
+        self.min_confidence = cfg.DEEPSORT.MIN_CONFIDENCE
+        self.nms_max_overlap = cfg.DEEPSORT.NMS_MAX_OVERLAP
 
-        self.extractor = Extractor(model_path, use_cuda=use_cuda)
-        self.vehicle_extractor = ExtractorVehicle(vehicle_model_path, use_cuda=use_cuda)
-        max_cosine_distance = max_dist
-        # nn_budget = 100
-        metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        self.tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
+        self.detector = build_detector(cfg, use_cuda=use_cuda)
+        # self.tracker = build_tracker(cfg, use_cuda=use_cuda)
 
-    def update(self, camera2world, bbox_xywh, confidences, cls_ids, ori_img):
+        self.extractor = Extractor(cfg.DEEPSORT.PERSON_REID_CKPT, use_cuda=use_cuda)
+        self.vehicle_extractor = ExtractorVehicle(cfg.DEEPSORT.VEHICLE_REID_CKPT, use_cuda=use_cuda)
+        max_cosine_distance = cfg.DEEPSORT.MAX_DIST
+        metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, cfg.DEEPSORT.NN_BUDGET)
+        self.tracker = Tracker(metric, max_iou_distance=cfg.DEEPSORT.MAX_IOU_DISTANCE,
+                               max_age=cfg.DEEPSORT.MAX_AGE,
+                               n_init=cfg.DEEPSORT.N_INIT)
+
+        k, v = zip(*list(cfg.CLS_DICT.items())[:-2])
+        k = [int(x) for x in k]
+        self.cls_dict = dict(zip(k, v))
+
+    def detect(self, ori_img):
+
+        # do detection
+        bbox_xywh, cls_conf, cls_ids = self.detector(ori_img)  # get all detections from image
+
+        detections = []
+        # select supported classes
+        mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
+        bbox_xywh = bbox_xywh[0][mask]
+        confidences = cls_conf[0][mask]
+        cls_ids = cls_ids[0][mask]
+
+
         self.height, self.width = ori_img.shape[:2]
+
         # generate detections
-        features = self._get_features(bbox_xywh, ori_img, cls_ids)   # get recognition features for every bbox
+        features = self._get_features(bbox_xywh, ori_img, cls_ids)  # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
-        detections = [Detection(camera2world, bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
+        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if
+                      conf > self.min_confidence]
 
         # run on non-maximum supression
         boxes = np.array([d.tlwh for d in detections])
@@ -36,26 +59,22 @@ class DeepSort(object):
         indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
         detections = [detections[i] for i in indices]
 
+        return detections
+
+    def track(self, detections, timestamp):
+
         # update tracker
-        self.tracker.predict(camera2world)  # predicting bbox position based on kf
-        self.tracker.update(detections)     # matching bbox to known tracks / creating new tracks
+        self.tracker.predict(timestamp)  # predicting bbox position based on kf
+        self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
         output_tracks = []
-        detections_conf = []
-        detections_cls_id = []
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 0:
                 continue
-            box = track.to_tlwh()
-            x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
-            track_id = track.track_id
-            detections_conf.append(track.confidence)
-            detections_cls_id.append(track.cls_id)
-            # output_tracks.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
             output_tracks.append(track)
 
-        return output_tracks, detections
+        return output_tracks
 
     """
     TODO:
