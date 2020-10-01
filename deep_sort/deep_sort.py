@@ -53,6 +53,9 @@ class DeepSort(object):
         # if in perception mode, track.xyz_pos is updated outside in application
         if not self.PERCEPTION_MODE:
             for track in self.tracker.tracks:
+                if track.is_confirmed() and track.time_since_update > 1:
+                    continue
+
                 track.to_xyz()
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
