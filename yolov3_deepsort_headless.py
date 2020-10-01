@@ -35,10 +35,8 @@ class Tracker:
         self.cam2world = Cam2World(self.width, self.height, self.camera_fov_x)
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
 
-        args = lambda: None
-        args.yolo_method = 'org'
-        self.detector = build_detector(self.cfg, args, use_cuda=use_cuda)
-        self.deepsort = build_tracker(self.cfg, self.cam2world, self.target_height_m, use_cuda=use_cuda)
+        self.detector = build_detector(self.cfg, use_cuda=use_cuda)
+        self.deepsort = build_tracker(self.cfg, use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
         self.identities = []
@@ -58,5 +56,9 @@ class Tracker:
 
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
+            
+            # calculate object distance and direction from camera
+            for i, track in enumerate(tracks):
+                track.to_xyz(self.cam2world, obj_height_meters=self.target_height_m)
 
         return tracks, detections
