@@ -61,7 +61,7 @@ def min_cost_matching(
     cost_matrix[cost_matrix > max_distance] = max_distance + 1e-5
 
     # adding depth threshold to cost matrix:
-    detections_depth = np.asarray([detections[i].to_xyz()[-1] for i in detection_indices])
+    detections_depth = np.asarray([detections[i].xyz_pos[-1] for i in detection_indices])
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
         track_depth = track.xyz_pos[-1]

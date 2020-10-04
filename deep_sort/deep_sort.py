@@ -17,6 +17,9 @@ class DeepSort(object):
 
         self.PERCEPTION_MODE = PERCEPTION_MODE
 
+        self.cam2world = cam2world
+        self.obj_height_meters = obj_height_meters
+
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 
@@ -26,11 +29,7 @@ class DeepSort(object):
         # nn_budget = 100
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
 
-        self.cam2world = cam2world
-        self.obj_height_meters = obj_height_meters
-
-        self.tracker = Tracker(metric, cam2world=self.cam2world, obj_height_meters=obj_height_meters,
-                               max_depth=max_depth, max_iou_distance=max_iou_distance, max_age=max_age,
+        self.tracker = Tracker(metric, max_depth=max_depth, max_iou_distance=max_iou_distance, max_age=max_age,
                                n_init=n_init)
 
     def update(self, bbox_xywh, confidences, cls_ids, ori_img):
@@ -38,7 +37,7 @@ class DeepSort(object):
         # generate detections
         features = self._get_features(bbox_xywh, ori_img, cls_ids)   # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
-        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i], cam2world=self.cam2world, obj_height_meters=self.obj_height_meters)
+        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i])
                       for i, conf in enumerate(confidences) if conf>self.min_confidence]
 
         # run on non-maximum supression
@@ -46,6 +45,10 @@ class DeepSort(object):
         scores = np.array([d.confidence for d in detections])
         indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
         detections = [detections[i] for i in indices]
+
+        # update detections with xyz pos:
+        for detection in detections:
+            detection.to_xyz(self.cam2world, self.obj_height_meters)
 
         # update tracker
         self.tracker.predict()  # predicting bbox position based on kf
@@ -56,7 +59,9 @@ class DeepSort(object):
                 if track.is_confirmed() and track.time_since_update > 1:
                     continue
 
-                track.to_xyz()
+                # updating tracks with xyz position
+                track.to_xyz(self.cam2world, self.obj_height_meters)
+
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities

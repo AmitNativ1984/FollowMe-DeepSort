@@ -37,7 +37,7 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, cam2world, obj_height_meters, max_depth, max_iou_distance=0.7, max_age=70, n_init=3):
+    def __init__(self, metric, max_depth, max_iou_distance=0.7, max_age=70, n_init=3):
         self.metric = metric
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
@@ -48,8 +48,6 @@ class Tracker:
         self._next_id = 1
 
         self.max_depth = max_depth
-        self.cam2world = cam2world
-        self.obj_height_meters = obj_height_meters
 
     def predict(self):
         """Propagate track state distributions one time step forward.
@@ -137,7 +135,6 @@ class Tracker:
 
     def _initiate_track(self, detection):
         mean, covariance = self.kf.initiate(detection.to_xyah())
-        self.tracks.append(Track(self.cam2world, self.obj_height_meters,
-                                mean, covariance, self._next_id, self.n_init, self.max_age,
-                                detection.feature))
+        self.tracks.append(Track(mean, covariance, self._next_id, self.n_init, self.max_age,
+                                 detection.feature))
         self._next_id += 1
