@@ -36,7 +36,9 @@ class Tracker:
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
 
         self.detector = build_detector(self.cfg, use_cuda=use_cuda)
-        self.deepsort = build_tracker(self.cfg, use_cuda=use_cuda)
+        self.deepsort = build_tracker(self.cfg, cam2world=self.cam2world,
+                                      obj_height_meters=self.target_height_m,
+                                      use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
         self.identities = []
