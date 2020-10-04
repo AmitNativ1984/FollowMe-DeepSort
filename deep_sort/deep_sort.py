@@ -71,12 +71,9 @@ class DeepSort(object):
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 0:
                 continue
-            box = track.to_tlwh()
-            x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
-            track_id = track.track_id
-            detections_conf.append(track.confidence)
-            detections_cls_id.append(track.cls_id)
-            # output_tracks.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
+
+            # updating tracks with xyz position
+            track.to_xyz(self.cam2world, self.obj_height_meters)
             output_tracks.append(track)
 
         return output_tracks, detections
