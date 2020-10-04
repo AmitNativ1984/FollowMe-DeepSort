@@ -37,7 +37,7 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, max_depth, max_iou_distance=0.7, max_age=70, n_init=3):
+    def __init__(self, metric, max_depth, kf_thres_position_only, max_iou_distance=0.7, max_age=70, n_init=3):
         self.metric = metric
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
@@ -48,6 +48,7 @@ class Tracker:
         self._next_id = 1
 
         self.max_depth = max_depth
+        self.kf_thres_position_only = kf_thres_position_only
 
     def predict(self):
         """Propagate track state distributions one time step forward.
@@ -101,7 +102,7 @@ class Tracker:
             cost_matrix = self.metric.distance(features, targets)
             cost_matrix = linear_assignment.gate_cost_matrix(
                 self.kf, cost_matrix, tracks, dets, track_indices,
-                detection_indices)
+                detection_indices, only_position=self.kf_thres_position_only)
 
             return cost_matrix
 
