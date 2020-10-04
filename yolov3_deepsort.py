@@ -60,6 +60,7 @@ class Tracker(object):
         target_cls = list(self.cls_dict.keys())
         target_name = list(self.cls_dict.values())
         while self.vdo.grab():
+            print("frame: %d" % (frame))
             start = time.time()
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
@@ -99,7 +100,7 @@ class Tracker(object):
             if self.args.save_path:
                 self.writer.write(ori_im)
 
-            print("frame: %d"%(frame))
+
             frame += 1
 
         if self.args.save_path:

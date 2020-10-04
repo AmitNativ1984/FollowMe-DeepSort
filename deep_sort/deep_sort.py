@@ -53,28 +53,17 @@ class DeepSort(object):
 
         # update tracker
         self.tracker.predict()  # predicting bbox position based on kf
-        # update tracks xyz if not working in perception mode:
-        # if in perception mode, track.xyz_pos is updated outside in application
-        if not self.PERCEPTION_MODE:
-            for track in self.tracker.tracks:
-                if track.is_confirmed() and track.time_since_update > 1:
-                    continue
-
-                # updating tracks with xyz position
-                track.to_xyz(self.cam2world, self.obj_height_meters)
-
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
         output_tracks = []
-        detections_conf = []
-        detections_cls_id = []
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 0:
                 continue
 
             # updating tracks with xyz position
-            track.to_xyz(self.cam2world, self.obj_height_meters)
+            if not self.PERCEPTION_MODE:
+                track.to_xyz(self.cam2world, self.obj_height_meters)
             output_tracks.append(track)
 
         return output_tracks, detections

@@ -64,7 +64,7 @@ class Track:
     """
 
     def __init__(self, mean, covariance, track_id, n_init, max_age,
-                 feature=None, cls_id=0.):
+                 feature=None, cls_id=0., xyz_pos=0.):
         self.mean = mean
         self.covariance = covariance
         self.track_id = track_id
@@ -80,7 +80,7 @@ class Track:
         self._n_init = n_init
         self._max_age = max_age
 
-        self.xyz_pos = 0.0
+        self.xyz_pos = xyz_pos
         self.detection_tlbr = []
         self.cls_id = cls_id
 
