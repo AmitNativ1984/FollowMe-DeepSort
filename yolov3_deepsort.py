@@ -30,7 +30,9 @@ class Tracker(object):
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
         self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, use_cuda=use_cuda)
-        self.deepsort = build_tracker(cfg, use_cuda=use_cuda)
+        self.deepsort = build_tracker(cfg, cam2world=self.cam2world,
+                                      obj_height_meters=self.args.target_height,
+                                      use_cuda=use_cuda)
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
         self.target_id = []
@@ -127,16 +129,13 @@ class Tracker(object):
 
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-            # calculate object distance and direction from camera
-            for i, track in enumerate(tracks):
-                track.to_xyz(self.cam2world, obj_height_meters=self.args.target_height)
 
         return tracks, detections
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--video_path", type=str, default='')
-    parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
+    # parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
@@ -160,7 +159,7 @@ def parse_args():
 if __name__=="__main__":
     args = parse_args()
     cfg = get_config()
-    cfg.merge_from_file(args.config_detection)
+    # cfg.merge_from_file(args.config_detection)
     cfg.merge_from_file(args.config_deepsort)
 
     torch.set_num_threads(cfg.NUM_CPU_CORES)

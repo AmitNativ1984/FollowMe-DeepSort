@@ -10,7 +10,7 @@ INFTY_COST = 1e+5
 
 
 def min_cost_matching(
-        distance_metric, max_distance, tracks, detections, track_indices=None,
+        distance_metric, max_distance, max_depth, tracks, detections, track_indices=None,
         detection_indices=None):
     """Solve linear assignment problem.
 
@@ -25,6 +25,9 @@ def min_cost_matching(
     max_distance : float
         Gating threshold. Associations with cost larger than this value are
         disregarded.
+    max_depth: float
+        Associations between track and detections where depth (z coordinate) are larger than
+        than this threshold are disregarded
     tracks : List[track.Track]
         A list of predicted tracks at the current time step.
     detections : List[detection.Detection]
@@ -57,6 +60,13 @@ def min_cost_matching(
         tracks, detections, track_indices, detection_indices)
     cost_matrix[cost_matrix > max_distance] = max_distance + 1e-5
 
+    # adding depth threshold to cost matrix:
+    detections_depth = np.asarray([detections[i].xyz_pos[-1] for i in detection_indices])
+    for row, track_idx in enumerate(track_indices):
+        track = tracks[track_idx]
+        track_depth = track.xyz_pos[-1]
+        cost_matrix[row, abs(track_depth - detections_depth) > max_depth] = max_distance + 1e-5
+
     row_indices, col_indices = linear_assignment(cost_matrix)
 
     matches, unmatched_tracks, unmatched_detections = [], [], []
@@ -78,7 +88,7 @@ def min_cost_matching(
 
 
 def matching_cascade(
-        distance_metric, max_distance, cascade_depth, tracks, detections,
+        distance_metric, max_distance, max_depth, cascade_depth, tracks, detections,
         track_indices=None, detection_indices=None):
     """Run matching cascade.
 
@@ -136,9 +146,10 @@ def matching_cascade(
 
         matches_l, _, unmatched_detections = \
             min_cost_matching(
-                distance_metric, max_distance, tracks, detections,
+                distance_metric, max_distance, max_depth, tracks, detections,
                 track_indices_l, unmatched_detections)
         matches += matches_l
+
     unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches))
     return matches, unmatched_tracks, unmatched_detections
 

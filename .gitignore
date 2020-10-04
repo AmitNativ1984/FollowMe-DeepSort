@@ -13,4 +13,4 @@ build/
 *.mpeg
 *.pt
 /.idea/
-/segmentor/pytorch_deeplab/weights/checkpoint_bbox_pytorch.pth
+*.pth

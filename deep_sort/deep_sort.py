@@ -12,7 +12,14 @@ __all__ = ['DeepSort']
 
 
 class DeepSort(object):
-    def __init__(self, model_path, vehicle_model_path, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100, use_cuda=True):
+    def __init__(self, model_path, vehicle_model_path, cam2world, obj_height_meters, max_depth, max_dist=0.2, min_confidence=0.3, nms_max_overlap=1.0, max_iou_distance=0.7, max_age=70, n_init=3, nn_budget=100,
+                 PERCEPTION_MODE=False, use_cuda=True):
+
+        self.PERCEPTION_MODE = PERCEPTION_MODE
+
+        self.cam2world = cam2world
+        self.obj_height_meters = obj_height_meters
+
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 
@@ -21,14 +28,17 @@ class DeepSort(object):
         max_cosine_distance = max_dist
         # nn_budget = 100
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, nn_budget)
-        self.tracker = Tracker(metric, max_iou_distance=max_iou_distance, max_age=max_age, n_init=n_init)
+
+        self.tracker = Tracker(metric, max_depth=max_depth, max_iou_distance=max_iou_distance, max_age=max_age,
+                               n_init=n_init)
 
     def update(self, bbox_xywh, confidences, cls_ids, ori_img):
         self.height, self.width = ori_img.shape[:2]
         # generate detections
         features = self._get_features(bbox_xywh, ori_img, cls_ids)   # get recognition features for every bbox
         bbox_tlwh = self._xywh_to_tlwh(bbox_xywh)
-        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i]) for i, conf in enumerate(confidences) if conf>self.min_confidence]
+        detections = [Detection(bbox_tlwh[i], conf, cls_ids[i], features[i])
+                      for i, conf in enumerate(confidences) if conf>self.min_confidence]
 
         # run on non-maximum supression
         boxes = np.array([d.tlwh for d in detections])
@@ -36,8 +46,22 @@ class DeepSort(object):
         indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
         detections = [detections[i] for i in indices]
 
+        # update detections with xyz pos:
+        for detection in detections:
+            detection.to_xyz(self.cam2world, self.obj_height_meters)
+
         # update tracker
         self.tracker.predict()  # predicting bbox position based on kf
+        # update tracks xyz if not working in perception mode:
+        # if in perception mode, track.xyz_pos is updated outside in application
+        if not self.PERCEPTION_MODE:
+            for track in self.tracker.tracks:
+                if track.is_confirmed() and track.time_since_update > 1:
+                    continue
+
+                # updating tracks with xyz position
+                track.to_xyz(self.cam2world, self.obj_height_meters)
+
         self.tracker.update(detections) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
@@ -47,12 +71,9 @@ class DeepSort(object):
         for track in self.tracker.tracks:
             if not track.is_confirmed() or track.time_since_update > 0:
                 continue
-            box = track.to_tlwh()
-            x1,y1,x2,y2 = self._tlwh_to_xyxy(box)
-            track_id = track.track_id
-            detections_conf.append(track.confidence)
-            detections_cls_id.append(track.cls_id)
-            # output_tracks.append(np.array([x1,y1,x2,y2, track_id], dtype=np.int))
+
+            # updating tracks with xyz position
+            track.to_xyz(self.cam2world, self.obj_height_meters)
             output_tracks.append(track)
 
         return output_tracks, detections

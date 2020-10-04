@@ -37,7 +37,7 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, max_iou_distance=0.7, max_age=70, n_init=3):
+    def __init__(self, metric, max_depth, max_iou_distance=0.7, max_age=70, n_init=3):
         self.metric = metric
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
@@ -46,6 +46,8 @@ class Tracker:
         self.kf = kalman_filter.KalmanFilter()
         self.tracks = []
         self._next_id = 1
+
+        self.max_depth = max_depth
 
     def predict(self):
         """Propagate track state distributions one time step forward.
@@ -64,6 +66,7 @@ class Tracker:
             A list of detections at the current time step.
 
         """
+
         # Run matching cascade. (hungarian algorithm)
         matches, unmatched_tracks, unmatched_detections = \
             self._match(detections)
@@ -111,7 +114,7 @@ class Tracker:
         # Associate detections with known track based on deep features and rid
         matches_a, unmatched_tracks_a, unmatched_detections = \
             linear_assignment.matching_cascade(
-                gated_metric, self.metric.matching_threshold, self.max_age,
+                gated_metric, self.metric.matching_threshold, self.max_depth, self.max_age,
                 self.tracks, detections, confirmed_tracks)
 
         # Associate remaining tracks together with unconfirmed tracks using IOU.
@@ -123,7 +126,7 @@ class Tracker:
             self.tracks[k].time_since_update not in [1, 2, 3]]
         matches_b, unmatched_tracks_b, unmatched_detections = \
             linear_assignment.min_cost_matching(
-                iou_matching.iou_cost, self.max_iou_distance, self.tracks,
+                iou_matching.iou_cost, self.max_iou_distance, self.max_depth, self.tracks,
                 detections, iou_track_candidates, unmatched_detections)
 
         matches = matches_a + matches_b

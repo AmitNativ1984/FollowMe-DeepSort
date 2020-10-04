@@ -33,6 +33,7 @@ class Detection(object):
         feature = np.asarray(feature, dtype=np.float32)
         self.feature = feature
         self.cls_id = cls_id
+        self.xyz_pos = []
 
     def to_tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,
@@ -50,3 +51,13 @@ class Detection(object):
         ret[:2] += ret[2:] / 2
         ret[2] /= ret[3]
         return ret
+
+    def to_xyz(self, cam2world, obj_height_meters):
+        tlbr = self.to_tlbr()
+        self.xyz_pos = cam2world.obj_world_xyz(x1=tlbr[0],
+                                          y1=tlbr[1],
+                                          x2=tlbr[2],
+                                          y2=tlbr[3],
+                                          obj_height_meters=obj_height_meters)
+
+        return self.xyz_pos
