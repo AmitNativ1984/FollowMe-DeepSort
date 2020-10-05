@@ -27,7 +27,7 @@ class Tracker(object):
 
         self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
                                    self.args.thetaX)
-        self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
+        self.cls_dict = {0: 'person', 2: 'vehicle', 7: 'vehicle'}
         self.vdo = cv2.VideoCapture()
         self.detector = build_detector(cfg, use_cuda=use_cuda)
         self.deepsort = build_tracker(cfg, cam2world=self.cam2world,
@@ -87,7 +87,7 @@ class Tracker(object):
                     identities.append(track.track_id)
                     confs.append(track.confidence)
                     xyz_pos.append(track.xyz_pos)
-                    cls_names.append(track.cls_id)
+                    cls_names.append(self.cls_dict[track.cls_id])
 
 
                 ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
