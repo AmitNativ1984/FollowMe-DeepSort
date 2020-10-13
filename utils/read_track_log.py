@@ -65,11 +65,8 @@ if __name__ == "__main__":
     ax2 = ax1.twinx()
     ax2.set_ylabel('# dframes [N - (N-1)]')
     # ax2.plot(confirmed_timestamp[:-1]/1E3,dt)
-    ax2.plot(frames[:-1], dframes)
 
-    # print(np.average(dRdt[200:600]))
-    # print(np.std(dRdt[200:600]))
-    # print(np.max(np.abs(dRdt[200:600])))
+    ax2.plot(frames[:-1], dframes)
 
     plt.show()
 
