@@ -12,8 +12,9 @@ def parse_log_file(logfile):
     Z = []
 
     for line in lines:
-        frame, x, y, z = line.split(',')
+        frame, cls_id, conf, bbox, xyz_pos = line.split(',')
         FRAME.append(float(frame))
+        x, y, z = xyz_pos[1:-1].split()
         X.append(float(x))
         Y.append(float(y))
         Z.append(float(z))
@@ -27,6 +28,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     frames, x, y, z = parse_log_file(args.logfile)
+    dframes = frames[1:] - frames[:-1]
 
     R = np.sqrt(x**2 + z**2)
 
@@ -44,8 +46,8 @@ if __name__ == "__main__":
     dRdt = R[1:] - R[0:-1]
 
     plt.subplot(2, 1, 2)
-    plt.plot(frames[:-1], dzdt, c='blue', label='dz')
-    plt.plot(frames[:-1], dRdt, c='red', label='dR')
+    plt.plot(frames[:-1], np.abs(dzdt), c='blue', label='dz')
+    plt.plot(frames[:-1], np.abs(dRdt), c='red', label='dR')
     plt.title('distance')
     plt.xlabel('# frame')
     plt.ylabel('[m/frame]')
@@ -53,9 +55,21 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.grid()
 
-    print(np.average(dRdt[200:600]))
-    print(np.std(dRdt[200:600]))
-    print(np.max(np.abs(dRdt[200:600])))
+    fig, ax1 = plt.subplots()
+    ax1.set_xlabel('frames')
+    ax1.set_ylabel('[m/s]')
+    plt.title('distance derivative')
+    ax1.scatter(frames[:-1], np.abs(dzdt), c='blue', label='dz', s=10, alpha=0.5)
+    ax1.scatter(frames[:-1], np.abs(dRdt), c='red', alpha=0.5, s=10, label='dR')
+    ax1.grid()
+    ax2 = ax1.twinx()
+    ax2.set_ylabel('# dframes [N - (N-1)]')
+    # ax2.plot(confirmed_timestamp[:-1]/1E3,dt)
+    ax2.plot(frames[:-1], dframes)
+
+    # print(np.average(dRdt[200:600]))
+    # print(np.std(dRdt[200:600]))
+    # print(np.max(np.abs(dRdt[200:600])))
 
     plt.show()
 
