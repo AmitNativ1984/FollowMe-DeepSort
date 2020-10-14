@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     with open("./" + args.logfile.split('\\')[-1], 'a+') as f:
         for t, frm, r, depth in zip(list(confirmed_timestamp), list(confirmed_frames), list(R), list(z)):
-            f.write("{},{},},{}\n".format(t, frm, r, depth))
+            f.write("{},{},{},{}\n".format(t, frm, r, depth))
 
 
 
