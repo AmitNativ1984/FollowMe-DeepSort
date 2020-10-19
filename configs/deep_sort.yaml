@@ -5,7 +5,7 @@ DEEPSORT:
   MIN_CONFIDENCE: 0.2
   NMS_MAX_OVERLAP: 0.4  # non max suppression between near objects
   MAX_IOU_DISTANCE: 0.9   # distance in term of IOU distance between detections of same object
-  MAX_DEPTH: 15         # max accepted depth distance for association between detection and track
+  MAX_DEPTH: 7         # max accepted depth distance for association between detection and track
   KF_THRES_POSITION_ONLY: True   # kalman filter gating distance takes into account bbox position only, or also width and height
   MAX_AGE: 800           # tracks that exceed this frame number without successfull association of measurement have left scene
   N_INIT: 3           # number of frames to init a track
