@@ -12,42 +12,18 @@ from deep_sort import build_tracker
 from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
-from pyterranava.logging import configure_logging
-from datetime import datetime
+from yolov3_deepsort_headless import Tracker
 
-class Tracker(object):
-    def __init__(self, cfg, args):
-        self.cfg = cfg
+class DeepSortManager(object):
+    def __init__(self, tracker, args):
+        self.tracker = tracker
         self.args = args
-        use_cuda = args.use_cuda and torch.cuda.is_available()
-        if not use_cuda:
-            raise UserWarning("Running in cpu mode!")
-
         if args.display:
             cv2.namedWindow("test", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
-        self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
-                                   self.args.thetaX)
-        self.cls_dict = {0: 'person', 2: 'vehicle', 7: 'vehicle'}
         self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, use_cuda=use_cuda)
-        self.deepsort = build_tracker(cfg, cam2world=self.cam2world,
-                                      obj_height_meters=self.args.target_height,
-                                      use_cuda=use_cuda)
-        self.class_names = self.detector.class_names
-        self.bbox_xyxy = []
-        self.target_id = []
         self.frame = 0
-        date, time = (str(datetime.now())).split(' ')
-        time = time.split('.')[0].replace(":", "-")
-        date = (str(datetime.now())).split(' ')[0]
-        date_time = date + "_" + time
-
-        full_log_path = os.path.join(os.environ['TERRA_NAVA_LOG_DIR'], 'followme', date_time)
-        os.makedirs(full_log_path, exist_ok=True)
-        self.logger = configure_logging(log_name="DeepSort", filename=os.path.join('followme', date_time, 'tracks.log'))
-
     def __enter__(self):
         assert os.path.isfile(self.args.video_path), "Error: path error"
         self.vdo.open(self.args.video_path)
@@ -67,14 +43,14 @@ class Tracker(object):
             print(exc_type, exc_value, exc_traceback)
 
     def run(self):
-        target_cls = list(self.cls_dict.keys())
-        target_name = list(self.cls_dict.values())
+        target_cls = list(self.tracker.cls_dict.keys())
+        target_name = list(self.tracker.cls_dict.values())
         while self.vdo.grab():
             start = time.time()
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
-            tracks, detections = self.DeepSort(im, target_cls)
+            tracks, detections = self.tracker.DeepSort(im, target_cls)
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
@@ -96,10 +72,10 @@ class Tracker(object):
                     identities.append(track.track_id)
                     confs.append(track.confidence)
                     xyz_pos.append(track.xyz_pos)
-                    cls_names.append(self.cls_dict[track.cls_id])
+                    cls_names.append(self.tracker.cls_dict[track.cls_id])
 
 
-                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
+                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=[], confs=confs,
                                     target_xyz=xyz_pos, cls_names=cls_names)
 
             if args.display:
@@ -114,19 +90,7 @@ class Tracker(object):
         if self.args.save_path:
             self.writer.release()
 
-
-
-    def deep_sort_from_pointer(self, im_ptr, target_cls):
-        ptr_type = POINTER(c_uint8)
-        num_pixels = self.args.img_height * self.args.img_width
-        num_bytes = num_pixels * 3
-        im_contiguous = np.ctypeslib.as_array(cast(im_ptr, ptr_type), shape=(num_bytes,))
-
-        return self.DeepSort(im_contiguous, target_cls)
-
     def DeepSort(self, im, target_cls):
-        time_sec = datetime.strptime(str(datetime.now()), '%Y-%m-%d %H:%M:%S.%f').timestamp()
-
         im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
@@ -142,19 +106,6 @@ class Tracker(object):
 
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-
-        if len(tracks) == 0:
-            msg = "{},{},{},{},{},{},{},{},{},{},{},{}".format(time_sec, self.frame, None, None, None, None, None, None, None, None, None, None)
-            self.logger.info(msg)
-
-        else:
-            for track in tracks:
-                msg = "{},{},{},{},{},{},{}".format(time_sec, self.frame, track.track_id, int(track.cls_id), track.confidence,
-                                                 str(list(track.to_tlbr().astype(np.int)))[1:-1].replace(" ", ""),
-                                                 str(track.xyz_pos)[1:-1].replace(" ", ""))
-
-
-                self.logger.info(msg)
 
         return tracks, detections
 
@@ -191,5 +142,11 @@ if __name__=="__main__":
     torch.set_num_threads(cfg.NUM_CPU_CORES)
     print("Using {} CPU cores".format(torch.get_num_threads()))
 
-    with Tracker(cfg, args) as tracker:
-        tracker.run()
+    # creating tracker:
+    cls_dict = {0: 'person', 2: 'vehicle', 7: 'vehicle'}
+    safezone = [100, 100, 1000, 600]
+    tracker = Tracker(args.img_width, args.img_height, cls_dict, safezone,
+                      args.thetaX, args.target_height)
+
+    with DeepSortManager(tracker, args) as ds_tracker:
+        ds_tracker.run()
