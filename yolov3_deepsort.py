@@ -12,6 +12,8 @@ from deep_sort import build_tracker
 from utils.draw import draw_boxes
 from utils.parser import get_config
 from utils.camera2world import Cam2World
+from pyterranava.logging import configure_logging
+from datetime import datetime
 
 class Tracker(object):
     def __init__(self, cfg, args):
@@ -36,6 +38,15 @@ class Tracker(object):
         self.class_names = self.detector.class_names
         self.bbox_xyxy = []
         self.target_id = []
+        self.frame = 0
+        date, time = (str(datetime.now())).split(' ')
+        time = time.split('.')[0].replace(":", "-")
+        date = (str(datetime.now())).split(' ')[0]
+        date_time = date + "_" + time
+
+        full_log_path = os.path.join(os.environ['TERRA_NAVA_LOG_DIR'], 'followme', date_time)
+        os.makedirs(full_log_path, exist_ok=True)
+        self.logger = configure_logging(log_name="DeepSort", filename=os.path.join('followme', date_time, 'tracks.log'))
 
     def __enter__(self):
         assert os.path.isfile(self.args.video_path), "Error: path error"
@@ -56,11 +67,9 @@ class Tracker(object):
             print(exc_type, exc_value, exc_traceback)
 
     def run(self):
-        frame = 0
         target_cls = list(self.cls_dict.keys())
         target_name = list(self.cls_dict.values())
         while self.vdo.grab():
-            print("frame: %d" % (frame))
             start = time.time()
             _, ori_im = self.vdo.retrieve()
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
@@ -100,11 +109,12 @@ class Tracker(object):
             if self.args.save_path:
                 self.writer.write(ori_im)
 
-
-            frame += 1
+            self.frame += 1
 
         if self.args.save_path:
             self.writer.release()
+
+
 
     def deep_sort_from_pointer(self, im_ptr, target_cls):
         ptr_type = POINTER(c_uint8)
@@ -115,6 +125,8 @@ class Tracker(object):
         return self.DeepSort(im_contiguous, target_cls)
 
     def DeepSort(self, im, target_cls):
+        time_sec = datetime.strptime(str(datetime.now()), '%Y-%m-%d %H:%M:%S.%f').timestamp()
+
         im = im.reshape(self.args.img_height, self.args.img_width, 3)
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
@@ -130,6 +142,19 @@ class Tracker(object):
 
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
+
+        if len(tracks) == 0:
+            msg = "{},{},{},{},{},{},{},{},{},{},{},{}".format(time_sec, self.frame, None, None, None, None, None, None, None, None, None, None)
+            self.logger.info(msg)
+
+        else:
+            for track in tracks:
+                msg = "{},{},{},{},{},{},{}".format(time_sec, self.frame, track.track_id, int(track.cls_id), track.confidence,
+                                                 str(list(track.to_tlbr().astype(np.int)))[1:-1].replace(" ", ""),
+                                                 str(track.xyz_pos)[1:-1].replace(" ", ""))
+
+
+                self.logger.info(msg)
 
         return tracks, detections
 
