@@ -7,7 +7,7 @@ from detector import build_detector
 from deep_sort import build_tracker
 from utils.parser import get_config
 from utils.camera2world import Cam2World
-from utils.logging.deepsort_logger import log_tracks, create_logger
+from utils.logging.deepsort_logger import DeepSortLogger
 
 def get_merged_config():
     cfg = get_config()
@@ -43,7 +43,7 @@ class Tracker:
         self.target_id = []
 
         # configuring logger:
-        self.logger = create_logger()
+        self.logger = DeepSortLogger()
         self.frame = -1
 
     def DeepSort(self, im, target_cls):
@@ -62,6 +62,6 @@ class Tracker:
         if len(cls_ids) > 0:
             tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
 
-        log_tracks(self.logger, self.frame, tracks)
+        self.logger.write(self.frame, tracks)
 
         return tracks, detections

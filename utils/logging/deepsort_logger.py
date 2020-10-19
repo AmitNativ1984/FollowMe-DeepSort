@@ -1,17 +1,46 @@
 from datetime import datetime
 import os
-from pyterranava.logging import configure_logging
 import numpy as np
+
+import logging
+from logging import getLogger, Formatter, StreamHandler, FileHandler
+
+PRINT_TO_STDOUT = False
 
 class DeepSortLogger(object):
     def __init__(self):
-        # configuring logger:
+        self.logger = self.configure_logging()
+
+    def configure_logging(self):
         date, time = (str(datetime.now())).split(' ')
         time = time.split('.')[0].replace(":", "-")
         date = (str(datetime.now())).split(' ')[0]
         full_log_path = os.path.join(os.environ['TERRA_NAVA_LOG_DIR'], 'followme', date + "_" + time)
         os.makedirs(full_log_path, exist_ok=True)
-        self.logger = configure_logging(log_name="DeepSort", filename=os.path.join(full_log_path, 'tracks.log'))
+
+        log_name = "DeepSort"
+        filename = os.path.join(full_log_path, 'tracks.log')
+
+        logger = getLogger(log_name)
+        logger.setLevel(logging.DEBUG)
+
+        formatter = Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+        # Create file output.
+        full_log_path = os.path.join(os.environ['TERRA_NAVA_LOG_DIR'], filename)
+        file_handler = FileHandler(full_log_path)
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+        if PRINT_TO_STDOUT:
+            # Create console output.
+            console = StreamHandler()
+            console.setLevel(logging.DEBUG)
+            console.setFormatter(formatter)
+            logger.addHandler(console)
+
+        return logger
 
     def write(self, frame, tracks):
 
