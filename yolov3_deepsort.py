@@ -21,11 +21,11 @@ class DeepSortManager(object):
     def __init__(self, tracker, args):
         self.tracker = tracker
         self.args = args
-        if args.display:
-            cv2.namedWindow("test", cv2.WINDOW_NORMAL)
-            cv2.resizeWindow("test", args.display_width, args.display_height)
-
+        self.dataset = LoadImages(self.args.root_dir)
+        self.dataloader = DataLoader(self.dataset, batch_size=1,
+                                     shuffle=False)
         self.frame = 0
+
     def __enter__(self):
         assert os.path.isdir(self.args.root_dir), "Error: path error"
 
@@ -44,8 +44,11 @@ class DeepSortManager(object):
             print(exc_type, exc_value, exc_traceback)
 
     def run(self):
+        if args.display:
+            cv2.namedWindow("test", cv2.WINDOW_NORMAL)
+            cv2.resizeWindow("test", args.display_width, args.display_height)
+
         target_cls = list(self.tracker.cls_dict.keys())
-        target_name = list(self.tracker.cls_dict.values())
         for frame, ori_im in enumerate(self.dataloader):
             print("frame: %d" % (frame))
             start = time.time()
@@ -92,29 +95,10 @@ class DeepSortManager(object):
         if self.args.save_path:
             self.writer.release()
 
-    def DeepSort(self, im, target_cls):
-        im = im.reshape(self.args.img_height, self.args.img_width, 3)
-        # do detection
-        bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
-        tracks = []
-        detections = []
-
-        # select person class
-        mask = np.isin(cls_ids[0], list(self.cls_dict.keys()))
-        bbox_xywh = bbox_xywh[0][mask]
-        cls_conf = cls_conf[0][mask]
-        cls_ids = cls_ids[0][mask]
-        cls_ids = np.array([2. if id != 0 else id for id in cls_ids])
-
-        if len(cls_ids) > 0:
-            tracks, detections = self.deepsort.update(bbox_xywh, cls_conf, cls_ids, im)
-
-        return tracks, detections
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root-dir", type=str, default='')
-    # parser.add_argument("--config_detection", type=str, default="./configs/yolov3_probot_ultralytics.yaml")
+
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
