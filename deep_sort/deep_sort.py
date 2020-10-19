@@ -20,7 +20,6 @@ class DeepSort(object):
 
         self.cam2world = cam2world
         self.obj_height_meters = obj_height_meters
-
         self.min_confidence = min_confidence
         self.nms_max_overlap = nms_max_overlap
 

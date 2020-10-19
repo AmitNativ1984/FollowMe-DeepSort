@@ -15,45 +15,17 @@ from utils.parser import get_config
 from utils.camera2world import Cam2World
 from utils.datasets import LoadImages
 from torch.utils.data import DataLoader
+from yolov3_deepsort_headless import Tracker
 
-class Tracker(object):
-    def __init__(self, cfg, args):
-        self.cfg = cfg
+class DeepSortManager(object):
+    def __init__(self, tracker, args):
+        self.tracker = tracker
         self.args = args
-        use_cuda = args.use_cuda and torch.cuda.is_available()
-        if not use_cuda:
-            raise UserWarning("Running in cpu mode!")
-
         if args.display:
             cv2.namedWindow("test", cv2.WINDOW_NORMAL)
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
-        self.cam2world = Cam2World(self.args.img_width, self.args.img_height,
-                                   self.args.thetaX)
-        self.cls_dict = {0: 'person', 2: 'vehicle', 7: 'vehicle'}
-        self.dataset = LoadImages(self.args.root_dir)
-
-        self.dataloader = DataLoader(self.dataset, batch_size=1,
-                        shuffle=False)
-
-        self.vdo = cv2.VideoCapture()
-        self.detector = build_detector(cfg, use_cuda=use_cuda)
-        self.deepsort = build_tracker(cfg, cam2world=self.cam2world,
-                                      obj_height_meters=self.args.target_height,
-                                      use_cuda=use_cuda)
-        self.class_names = self.detector.class_names
-        self.bbox_xyxy = []
-        self.target_id = []
-
-        self.output_logs_path = "./Logs"
-        # cleanup prev records:
-        try:
-            shutil.rmtree(self.output_logs_path)
-        except:
-            pass
-
-        os.makedirs(self.output_logs_path, exist_ok=True)
-
+        self.frame = 0
     def __enter__(self):
         assert os.path.isdir(self.args.root_dir), "Error: path error"
 
@@ -62,7 +34,7 @@ class Tracker(object):
 
         if self.args.save_path:
             fourcc =  cv2.VideoWriter_fourcc(*'XVID')
-            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 25, (self.im_width, self.im_height))
+            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width,self.im_height))
 
         return self
 
@@ -72,16 +44,15 @@ class Tracker(object):
             print(exc_type, exc_value, exc_traceback)
 
     def run(self):
-        frame = 0
-        target_cls = list(self.cls_dict.keys())
-        target_name = list(self.cls_dict.values())
+        target_cls = list(self.tracker.cls_dict.keys())
+        target_name = list(self.tracker.cls_dict.values())
         for frame, ori_im in enumerate(self.dataloader):
             print("frame: %d" % (frame))
             start = time.time()
             ori_im = np.array(ori_im).squeeze(0)
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
-            tracks, detections = self.DeepSort(im, target_cls)
+            tracks, detections = self.tracker.DeepSort(im, target_cls)
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
@@ -103,18 +74,10 @@ class Tracker(object):
                     identities.append(track.track_id)
                     confs.append(track.confidence)
                     xyz_pos.append(track.xyz_pos)
-                    cls_names.append(self.cls_dict[track.cls_id])
+                    cls_names.append(self.tracker.cls_dict[track.cls_id])
 
-                    with open(os.path.join(self.output_logs_path, "tracks_log.txt"), "+a") as log:
-                        line = "{},{},{},{},{}\n".format(frame, track.cls_id, track.confidence,
-                                                          track.to_tlbr(), np.array(track.xyz_pos))
-                        log.write(line)
 
-                    with open(os.path.join(self.output_logs_path, "track_{}.txt".format(track.track_id)), "+a") as log:
-                        line = "{},{},{},{},{}\n".format(frame, track.cls_id, track.confidence,
-                                                          track.to_tlbr(), np.array(track.xyz_pos))
-                        log.write(line)
-                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=self.target_id, confs=confs,
+                ori_im = draw_boxes(ori_im, bbox_xyxy, identities, target_id=[], confs=confs,
                                     target_xyz=xyz_pos, cls_names=cls_names)
 
             if args.display:
@@ -124,18 +87,10 @@ class Tracker(object):
             if self.args.save_path:
                 self.writer.write(ori_im)
 
-            frame += 1
+            self.frame += 1
 
         if self.args.save_path:
             self.writer.release()
-
-    def deep_sort_from_pointer(self, im_ptr, target_cls):
-        ptr_type = POINTER(c_uint8)
-        num_pixels = self.args.img_height * self.args.img_width
-        num_bytes = num_pixels * 3
-        im_contiguous = np.ctypeslib.as_array(cast(im_ptr, ptr_type), shape=(num_bytes,))
-
-        return self.DeepSort(im_contiguous, target_cls)
 
     def DeepSort(self, im, target_cls):
         im = im.reshape(self.args.img_height, self.args.img_width, 3)
@@ -189,5 +144,11 @@ if __name__=="__main__":
     torch.set_num_threads(cfg.NUM_CPU_CORES)
     print("Using {} CPU cores".format(torch.get_num_threads()))
 
-    with Tracker(cfg, args) as tracker:
-        tracker.run()
+    # creating tracker:
+    cls_dict = {0: 'person', 2: 'vehicle', 7: 'vehicle'}
+    safezone = [100, 100, 1000, 600]
+    tracker = Tracker(args.img_width, args.img_height, cls_dict, safezone,
+                      args.thetaX, args.target_height)
+
+    with DeepSortManager(tracker, args) as ds_tracker:
+        ds_tracker.run()

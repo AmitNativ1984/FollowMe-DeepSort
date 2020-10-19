@@ -2,11 +2,11 @@ DEEPSORT:
   REID_CKPT: "C:/Temp/gitlab/pyfollowme/DeepSort/deep_sort/deep/checkpoint/persons_128x64.t7"
   VEHICLE_REID_CKPT: "C:/Temp/gitlab/pyfollowme/DeepSort/deep_sort/deep/checkpoint/vehicles_128x128.t7"
   MAX_DIST: 0.2  # distance between features of detections to be considered same object
-  MIN_CONFIDENCE: 0.5
+  MIN_CONFIDENCE: 0.2
   NMS_MAX_OVERLAP: 0.4  # non max suppression between near objects
   MAX_IOU_DISTANCE: 0.9   # distance in term of IOU distance between detections of same object
-  MAX_DEPTH: 15         # max accepted depth distance for association between detection and track
-  KF_THRES_POSITION_ONLY: False   # kalman filter gating distance takes into account bbox position only, or also width and height
+  MAX_DEPTH: 7         # max accepted depth distance for association between detection and track
+  KF_THRES_POSITION_ONLY: True   # kalman filter gating distance takes into account bbox position only, or also width and height
   MAX_AGE: 800           # tracks that exceed this frame number without successfull association of measurement have left scene
   N_INIT: 3           # number of frames to init a track
   NN_BUDGET: 300        # number of associated appearances descriptors on each track
@@ -20,5 +20,5 @@ YOLOV3:
   WEIGHT: "C:/Temp/gitlab/pyfollowme/DeepSort/detector/yolov3_ultralytics/weights/yolov3.pt"
   CLASS_NAMES: "C:/Temp/gitlab/pyfollowme/DeepSort/detector/yolov3_ultralytics/data/coco.names"
 
-  SCORE_THRESH: 0.5
+  SCORE_THRESH: 0.2
   NMS_THRESH: 0.5
