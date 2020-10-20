@@ -7,7 +7,7 @@ DEEPSORT:
   MAX_IOU_DISTANCE: 0.9   # distance in term of IOU distance between detections of same object
   MAX_DEPTH: 7         # max accepted depth distance for association between detection and track
   KF_THRES_POSITION_ONLY: True   # kalman filter gating distance takes into account bbox position only, or also width and height
-  MAX_AGE: 800           # tracks that exceed this frame number without successfull association of measurement have left scene
+  MAX_AGE: 800           # tracks that exceed this frame number without successful association of measurement have left scene
   N_INIT: 3           # number of frames to init a track
   NN_BUDGET: 300        # number of associated appearances descriptors on each track
 
