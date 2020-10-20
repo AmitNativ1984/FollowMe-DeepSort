@@ -98,7 +98,6 @@ class DeepSortManager(object):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root-dir", type=str, default='')
-
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
