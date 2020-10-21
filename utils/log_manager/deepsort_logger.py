@@ -44,7 +44,7 @@ class DeepSortLogger(object):
 
     def write(self, frame, tracks):
 
-        # logging:
+        # log_manager:
         time_sec = datetime.strptime(str(datetime.now()), '%Y-%m-%d %H:%M:%S.%f').timestamp()
         if len(tracks) == 0:
             msg = "{},{},{},{},{},{},{},{},{},{},{},{}".format(time_sec, frame, None, None, None, None, None, None, None, None, None, None)

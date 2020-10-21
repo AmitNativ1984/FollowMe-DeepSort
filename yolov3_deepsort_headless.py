@@ -7,7 +7,7 @@ from detector import build_detector
 from deep_sort import build_tracker
 from utils.parser import get_config
 from utils.camera2world import Cam2World
-from utils.logging.deepsort_logger import DeepSortLogger
+from utils.log_manager.deepsort_logger import DeepSortLogger
 
 def get_merged_config():
     cfg = get_config()

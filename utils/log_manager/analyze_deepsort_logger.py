@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import argparse
-from utils.logging.deepsort_logger import DeepSortLogger
+from utils.log_manager.deepsort_logger import DeepSortLogger
 import numpy as np
 
 
