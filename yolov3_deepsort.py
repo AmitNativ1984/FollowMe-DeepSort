@@ -34,7 +34,7 @@ class DeepSortManager(object):
 
         if self.args.save_path:
             fourcc =  cv2.VideoWriter_fourcc(*'XVID')
-            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 10, (self.im_width,self.im_height))
+            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 20, (self.im_width,self.im_height))
 
         return self
 
@@ -49,8 +49,8 @@ class DeepSortManager(object):
             cv2.resizeWindow("test", args.display_width, args.display_height)
 
         target_cls = list(self.tracker.cls_dict.keys())
-        for frame, ori_im in enumerate(self.dataloader):
-            print("frame: %d" % (frame))
+        for frame_ind, ori_im in enumerate(self.dataloader):
+            print("frame: %d" % (self.frame))
             start = time.time()
             ori_im = np.array(ori_im).squeeze(0)
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)

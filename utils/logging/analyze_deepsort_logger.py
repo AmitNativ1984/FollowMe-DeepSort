@@ -89,5 +89,12 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.grid()
 
+    # plotting distance changes as function of distance
+    plt.figure()
+    plt.scatter(z[:-1], absdzdt, c='blue', label='dz/z', s=20)
+    plt.title("dz as function of z")
+    plt.xlabel("z [m]")
+    plt.ylabel("dz [m]")
+
     plt.show()
 
