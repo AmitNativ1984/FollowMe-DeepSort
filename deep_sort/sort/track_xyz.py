@@ -87,6 +87,8 @@ class Track:
         self.kf_utm = kf    # kalman filter
         self.bbox_width = []
         self.bbox_height = []
+        self.cov_eigenvalues = []
+        self.cov_eigenvectors = []
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -136,6 +138,9 @@ class Track:
         self.mean, self.covariance = self.kf_utm.predict(time_stamp)
         self.age += 1
         self.time_since_update += 1
+
+        # calculating gating area:
+        self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(self.covariance[:2, :2])
 
     def update(self, detection):
         """Perform Kalman filter measurement update step and update the feature
@@ -189,3 +194,19 @@ class Track:
     def is_deleted(self):
         """Returns True if this track is dead and should be deleted."""
         return self.state == TrackState.Deleted
+
+    @staticmethod
+    def get_gated_area(covarianceMat, dims=2):
+        """
+        calculate eigen vectors and eigen values and then multiply by eigenvalues by chi2inv95 of K dims
+        to get ellipsoid shape
+        Args:
+            covarianceMat:
+
+        Returns:
+
+        """
+        assert covarianceMat.shape == (dims, dims), "covariance shape != (2,2)"
+
+        eigenvalues, eigenvectors = np.linalg.eig(covarianceMat)
+        return eigenvalues, eigenvectors

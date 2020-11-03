@@ -64,7 +64,7 @@ class Tracker(object):
         ax_radar.set_theta_direction(-1)
         ax_radar.set_theta_zero_location("N")
         ax_radar.set_rlabel_position(90)
-        ax_radar.set_rlim(bottom=0, top=20)
+        ax_radar.set_rlim(bottom=0, top=10)
 
         fig3Dtracking.suptitle('UTM Tracking')
 
@@ -92,7 +92,7 @@ class Tracker(object):
                 ax_radar.cla()
                 ax_radar.set_theta_direction(-1)
                 ax_radar.set_rlabel_position(90)
-                ax_radar.set_rlim(bottom=0, top=20)
+                ax_radar.set_rlim(bottom=0, top=10)
                 ax_radar.set_theta_zero_location(
                     "N")  # , offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
                 ax_radar.set_aspect('equal', 'box')
@@ -141,8 +141,15 @@ class Tracker(object):
                     theta_deg = np.arctan2(Rx, Rz)
                     ax_radar.scatter(theta_deg, R, color='r', alpha=0.5)# + sample["telemetry"]["yaw_pitch_roll"][0][0], R)
                     ax_radar.annotate(str(track.track_id), xy=(theta_deg, R), xycoords='data')
-                    cholesky_factor = np.linalg.cholesky(track.covariance[:2, :2])
-                    ellipse = Ellipse((Rx, Rz), cholesky_factor[0,0], cholesky_factor[1,1], transform=ax_radar.transData._b, color="green", alpha=0.9)
+
+                    lambda1, lambda2 = track.cov_eigenvalues
+                    mue1, mue2 = track.cov_eigenvectors
+                    chi2inv95dim2 = 5.9915
+                    r1 = np.sqrt(chi2inv95dim2 * lambda1)
+                    r2 = np.sqrt(chi2inv95dim2 * lambda2)
+                    angle = np.arctan2(mue1[1], mue1[0]) * 180 / np.pi
+
+                    ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None)
                     ax_radar.add_artist(ellipse)
 
                 ori_im = draw_boxes(ori_im,

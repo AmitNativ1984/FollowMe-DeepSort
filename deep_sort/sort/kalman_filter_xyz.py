@@ -48,8 +48,8 @@ class KalmanXYZ(object):
             9: 16.919}
 
 
-        sigmaPosX = 2
-        sigmaPosY = 2
+        sigmaPosX = 1
+        sigmaPosY = 5
         sigmaVelX = 20
         sigmaVelY = 20
 
@@ -64,7 +64,7 @@ class KalmanXYZ(object):
 
         # image detection noise (in meters)
         sensor_acc_X = 0.2
-        sensor_acc_Y = 0.2
+        sensor_acc_Y = 1
         self.R = np.array([[sensor_acc_X,        0.0],
                            [0.0,        sensor_acc_Y]])
 
@@ -90,7 +90,7 @@ class KalmanXYZ(object):
 
         self.F_matrix = computeFmatrix(deltaT)
 
-        Q = computeCovMatrix(deltaT, sigma_aX=0.5, sigma_aY=0.5)
+        Q = computeCovMatrix(deltaT, sigma_aX=0.1, sigma_aY=0.1)
 
         self.X_state_current = (self.F_matrix @ self.X_state_current) + U
         self.P = self.F_matrix @ self.P @ self.F_matrix.transpose() + Q
@@ -149,11 +149,12 @@ class KalmanXYZ(object):
 
         """
         # mean, covariance = self.project(mean, covariance)
+        # TODO: pull from master to get hankl
         if only_position:
-            mean, covariance = self.mean[:2], self.covariance[:2, :2]
+            mean, covariance = mean[:2], covariance[:2, :2]
             measurements = measurements[:, :2]
 
-        cholesky_factor = np.linalg.cholesky(covariance[:2, :2])
+        cholesky_factor = np.linalg.cholesky(covariance)
         d = measurements[:2] - mean[:2]
         z = scipy.linalg.solve_triangular(
             cholesky_factor, d, lower=True, check_finite=False,
