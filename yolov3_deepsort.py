@@ -6,6 +6,8 @@ import torch
 import numpy as np
 from distutils.util import strtobool
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.patches import Ellipse
 import ctypes
 from ctypes import POINTER, c_uint8, cast
 
@@ -27,6 +29,7 @@ class Tracker(object):
         kwargs = {'batch_size': args.batch_size, 'pin_memory': True}
         dataset = ProbotSensorsDataset(args)
         self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
+        self.data_loader = iter(self.data_loader)
         self.cam2world = Cam2World(args.img_width, args.img_height,
                                    args.thetaX, args.target_height, camAngle=0, cam_pos=cfg.CAMERA2IMU_DIST)
 
@@ -35,6 +38,7 @@ class Tracker(object):
         self.bbox_xyxy = []
         self.target_id = []
         self.DeepSort = DeepSort(self.cfg, use_cuda=use_cuda)
+        self.frame = 0
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
@@ -46,31 +50,36 @@ class Tracker(object):
         new_traget_raw = True
         U = np.array([[0], [0], [0], [0]])
 
-
-        fig3Dtracking = plt.figure()
+        # set figures and plots:
+        fig3Dtracking = plt.figure(figsize=(4, 6))
+        # utm map
         ax_map = fig3Dtracking.add_subplot(2, 1, 1)
-        ax_map.set_aspect('equal', 'box')
+        # ax_map.set_aspect('equal', 'box')
         ax_map.grid(True)
 
+
+        # vehicle radar
         ax_radar = fig3Dtracking.add_subplot(2, 1, 2, projection='polar')
         ax_radar.set_aspect('equal', 'box')
         ax_radar.set_theta_direction(-1)
         ax_radar.set_theta_zero_location("N")
         ax_radar.set_rlabel_position(90)
-        ax_radar.set_rlim(bottom=0, top=30)
+        ax_radar.set_rlim(bottom=0, top=20)
 
-        plt.tight_layout()
+        fig3Dtracking.suptitle('UTM Tracking')
 
-        # radar_fig, ax_polar, ax_carthesian = create_radar_plot(radar_fig=figRadar, ax_polar=figRadar, ax_carthesian=figRadar)
+        def ani_init():
+            """ init annimation """
+            ax_map.scatter([], [])
+            ax_radar.scatter([], [])
+            return ax_map, ax_radar
 
-        for frame, sample in enumerate(self.data_loader):
+        def process_data(sample):
             start_time = time.time()
-
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
             # update cam2world functions with new telemetry:
             self.cam2world.digest_new_telemetry(sample["telemetry"])
             ori_im = sample["image"].numpy().squeeze(0)
-
 
             ''' ************************************** '''
             tracks, detections = self.deepsort_core(ori_im)
@@ -80,24 +89,32 @@ class Tracker(object):
 
             # draw boxes for visualization
             if len(detections) > 0 and args.debug_mode and args.display:
-                ori_im = draw_boxes(ori_im,
-                                    [detection.to_tlbr() for detection in detections],
-                                    clr=[255, 255, 0])
-
-                for detection in detections:
-                    ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
-                                   marker='x', color='yellow', alpha=0.5)
-
-            if self.args.display and args.debug_mode:
-                ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
-                               marker='o', color='b', alpha=0.5)
-
                 ax_radar.cla()
                 ax_radar.set_theta_direction(-1)
                 ax_radar.set_rlabel_position(90)
                 ax_radar.set_rlim(bottom=0, top=20)
                 ax_radar.set_theta_zero_location(
                     "N")  # , offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
+                ax_radar.set_aspect('equal', 'box')
+
+                ori_im = draw_boxes(ori_im,
+                                    [detection.to_tlbr() for detection in detections],
+                                    clr=[255, 255, 0])
+
+                for detection in detections:
+                    ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
+                                   marker='x', color='g')
+
+                    relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(detection.to_tlbr())
+                    Rz = relxyz[1]
+                    Rx = relxyz[0]
+                    R = np.sqrt(Rz ** 2 + Rx ** 2)
+                    theta_deg = np.arctan2(Rx, Rz)
+                    ax_radar.scatter(theta_deg, R, color='g', marker='x')
+
+            if self.args.display and args.debug_mode:
+                ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
+                               marker='o', color='b', alpha=0.5)
 
                 confidence = []
                 track_id = []
@@ -114,15 +131,19 @@ class Tracker(object):
                     tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
                                       c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
                     bbox_tlbr.append(tlbr)
-                    ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='^',
-                                   color='r', alpha=0.5)
+                    ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='o',
+                                   color='r', alpha=0.5, s=50)
 
                     relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(tlbr)
                     Rz = relxyz[1]
                     Rx = relxyz[0]
                     R = np.sqrt(Rz ** 2 + Rx ** 2)
                     theta_deg = np.arctan2(Rx, Rz)
-                    ax_radar.scatter(theta_deg,R)# + sample["telemetry"]["yaw_pitch_roll"][0][0], R)
+                    ax_radar.scatter(theta_deg, R, color='r', alpha=0.5)# + sample["telemetry"]["yaw_pitch_roll"][0][0], R)
+                    ax_radar.annotate(str(track.track_id), xy=(theta_deg, R), xycoords='data')
+                    cholesky_factor = np.linalg.cholesky(track.covariance[:2, :2])
+                    ellipse = Ellipse((Rx, Rz), cholesky_factor[0,0], cholesky_factor[1,1], transform=ax_radar.transData._b, color="green", alpha=0.9)
+                    ax_radar.add_artist(ellipse)
 
                 ori_im = draw_boxes(ori_im,
                                     bbox_tlbr,
@@ -133,23 +154,28 @@ class Tracker(object):
                                     clr=[255, 0, 0])
 
 
-            cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
-            cv2.waitKey(1)
 
 
-            plt.pause(0.05)
-            # time.sleep(0.001)
-            end_time = time.time()
-            print(
-                'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
-                    frame, (end_time - start_time) * 1E3, (tracking_time - start_time) * 1E3,
-                    (end_time - tracking_time) * 1E3))
-            frame += 1
+                cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
+                cv2.waitKey(1)
 
-        if self.args.save_path:
-            self.writer.release()
+                end_time = time.time()
+                print(
+                    'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
+                        self.frame, (end_time - start_time) * 1E3, (tracking_time - start_time) * 1E3,
+                        (end_time - tracking_time) * 1E3))
+            self.frame += 1
+
+            if self.args.save_path:
+                self.writer.release()
+
+            return ax_map, ax_radar
 
         plt.ioff()
+
+        ani = animation.FuncAnimation(fig3Dtracking, process_data, frames=self.data_loader,
+                                      interval=1, blit=True, init_func=ani_init)
+        plt.show()
 
     def deepsort_core(self, img):
         ''' *** THIS IS WHERE THE MAGIC HAPPENS *** '''
@@ -203,4 +229,4 @@ if __name__=="__main__":
     tracker = Tracker(cfg, args)
     tracker.run()
 
-    plt.show()
+
