@@ -10,7 +10,7 @@ class LoadImages(Dataset):  # for inference
     def __init__(self, root_dir):
         self.root_dir = root_dir
         self.files = os.listdir(root_dir)
-        imgfiles = [x for x in self.files if os.path.splitext(x)[-1].lower() in img_formats]
+        imgfiles = [x for x in self.files if os.path.splitext(x)[-1].lower() in img_formats and pref in x]
         file_stamps = [int(num.split('_')[-1].split('.bmp')[0]) for num in imgfiles]
         inds = np.argsort(file_stamps)
         self.images = [imgfiles[i] for i in inds]
