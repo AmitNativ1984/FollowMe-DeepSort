@@ -46,7 +46,6 @@ class Tracker(object):
 
     def run(self):
         VISUALIZE_DETECTIONS = True
-        plt.ion()
         new_traget_raw = True
         U = np.array([[0], [0], [0], [0]])
 
@@ -91,11 +90,11 @@ class Tracker(object):
             if len(detections) > 0 and args.debug_mode and args.display:
                 ax_radar.cla()
                 ax_radar.set_theta_direction(-1)
-                ax_radar.set_rlabel_position(90)
+                # # ax_radar.set_rlabel_position(90)
                 ax_radar.set_rlim(bottom=0, top=10)
                 ax_radar.set_theta_zero_location(
                     "N")  # , offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
-                ax_radar.set_aspect('equal', 'box')
+                # ax_radar.set_aspect('equal', 'box')
 
                 ori_im = draw_boxes(ori_im,
                                     [detection.to_tlbr() for detection in detections],
@@ -103,7 +102,7 @@ class Tracker(object):
 
                 for detection in detections:
                     ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
-                                   marker='x', color='g')
+                                   marker='^', color='g', facecolor="None", alpha=0.5)
 
                     relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(detection.to_tlbr())
                     Rz = relxyz[1]
@@ -132,7 +131,7 @@ class Tracker(object):
                                       c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
                     bbox_tlbr.append(tlbr)
                     ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='o',
-                                   color='r', alpha=0.5, s=50)
+                                   color='r', s=5)
 
                     relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(tlbr)
                     Rz = relxyz[1]
@@ -149,7 +148,7 @@ class Tracker(object):
                     r2 = np.sqrt(chi2inv95dim2 * lambda2)
                     angle = np.arctan2(mue1[1], mue1[0]) * 180 / np.pi
 
-                    ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None)
+                    ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None, fill=False)
                     ax_radar.add_artist(ellipse)
 
                 ori_im = draw_boxes(ori_im,
