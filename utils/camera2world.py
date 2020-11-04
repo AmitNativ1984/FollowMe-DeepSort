@@ -110,12 +110,25 @@ class Cam2World(object):
 
         return row_center, col_center
 
-    def convert_utm_coordinates_to_bbox_center(self, utm_pos):
+    def convert_utm_coordinates_to_xyz_rel2imu(self, utm_pos):
         # from utm coordinates to xyz coordinates relative to imu:
-        xyz_rel2imu = np.linalg.inv(self.R_yaw) @ (utm_pos - self.telemetry["utmpos"])
+        return np.linalg.inv(self.R_yaw) @ (utm_pos - self.telemetry["utmpos"])
+
+    def convert_xyz_rel2imu_to_xyz_rel2vam(self, xyz_rel2imu):
+        # from xyz rel2imu and aligned to vehicle 12 O'clock, to xyz_rel2cam
+        return np.linalg.inv(self.R_cam) @ (xyz_rel2imu - self.cam_position_rel_to_imu)
+
+    def convert_utm_coordinates_to_xyz_rel2cam(self, utm_pos):
+        # from utm coordinates to xyz coordinates relative to imu:
+        xyz_rel2imu = self.convert_utm_coordinates_to_xyz_rel2imu(utm_pos)
 
         # from xyz rel2imu and aligned to vehicle 12 O'clock, to xyz_rel2cam
-        xyz_rel2cam = np.linalg.inv(self.R_cam) @ (xyz_rel2imu - self.cam_position_rel_to_imu)
+        xyz_rel2cam = self.convert_xyz_rel2imu_to_xyz_rel2vam(xyz_rel2imu)
+
+        return xyz_rel2cam
+
+    def convert_utm_coordinates_to_bbox_center(self, utm_pos):
+        xyz_rel2cam = self.convert_utm_coordinates_to_xyz_rel2cam(utm_pos)
 
         row_center, col_center = self.convert_relative_to_camera_xyz_to_bbox_center(xyz_rel2cam)
 

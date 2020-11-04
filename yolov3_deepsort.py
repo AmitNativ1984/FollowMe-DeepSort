@@ -50,20 +50,20 @@ class Tracker(object):
         U = np.array([[0], [0], [0], [0]])
 
         # set figures and plots:
-        fig3Dtracking = plt.figure(figsize=(4, 6))
+        fig3Dtracking = plt.figure(figsize=(8, 4))
         # utm map
-        ax_map = fig3Dtracking.add_subplot(2, 1, 1)
+        ax_map = fig3Dtracking.add_subplot(1, 2, 1)
         # ax_map.set_aspect('equal', 'box')
         ax_map.grid(True)
 
 
         # vehicle radar
-        ax_radar = fig3Dtracking.add_subplot(2, 1, 2, projection='polar')
+        ax_radar = fig3Dtracking.add_subplot(1, 2, 2, projection='polar')
         ax_radar.set_aspect('equal', 'box')
         ax_radar.set_theta_direction(-1)
         ax_radar.set_theta_zero_location("N")
         ax_radar.set_rlabel_position(90)
-        ax_radar.set_rlim(bottom=0, top=10)
+        ax_radar.set_rlim(bottom=0, top=20)
 
         fig3Dtracking.suptitle('UTM Tracking')
 
@@ -91,7 +91,7 @@ class Tracker(object):
                 ax_radar.cla()
                 ax_radar.set_theta_direction(-1)
                 # # ax_radar.set_rlabel_position(90)
-                ax_radar.set_rlim(bottom=0, top=10)
+                ax_radar.set_rlim(bottom=0, top=20)
                 ax_radar.set_theta_zero_location(
                     "N")  # , offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
                 # ax_radar.set_aspect('equal', 'box')
@@ -133,7 +133,7 @@ class Tracker(object):
                     ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='o',
                                    color='r', s=5)
 
-                    relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(tlbr)
+                    relxyz = self.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.utm_pos)
                     Rz = relxyz[1]
                     Rx = relxyz[0]
                     R = np.sqrt(Rz ** 2 + Rx ** 2)
