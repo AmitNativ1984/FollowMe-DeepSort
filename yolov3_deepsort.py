@@ -50,7 +50,7 @@ class Tracker(object):
         U = np.array([[0], [0], [0], [0]])
 
         # set figures and plots:
-        fig3Dtracking = plt.figure(figsize=(8, 4))
+        fig3Dtracking = plt.figure(figsize=(10, 4))
         # utm map
         ax_map = fig3Dtracking.add_subplot(1, 2, 1)
         # ax_map.set_aspect('equal', 'box')
@@ -63,7 +63,7 @@ class Tracker(object):
         ax_radar.set_theta_direction(-1)
         ax_radar.set_theta_zero_location("N")
         ax_radar.set_rlabel_position(90)
-        ax_radar.set_rlim(bottom=0, top=20)
+        ax_radar.set_rlim(bottom=0, top=30)
 
         fig3Dtracking.suptitle('UTM Tracking')
 
@@ -91,7 +91,7 @@ class Tracker(object):
                 ax_radar.cla()
                 ax_radar.set_theta_direction(-1)
                 # # ax_radar.set_rlabel_position(90)
-                ax_radar.set_rlim(bottom=0, top=20)
+                ax_radar.set_rlim(bottom=0, top=30)
                 ax_radar.set_theta_zero_location(
                     "N")  # , offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
                 # ax_radar.set_aspect('equal', 'box')
@@ -100,9 +100,12 @@ class Tracker(object):
                                     [detection.to_tlbr() for detection in detections],
                                     clr=[255, 255, 0])
 
+                ax_map.cla()
+                ax_map.grid(True)
+
                 for detection in detections:
                     ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
-                                   marker='^', color='g', facecolor="None", alpha=0.5)
+                                   marker='+', color='g')
 
                     relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(detection.to_tlbr())
                     Rz = relxyz[1]
@@ -114,6 +117,9 @@ class Tracker(object):
             if self.args.display and args.debug_mode:
                 ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
                                marker='o', color='b', alpha=0.5)
+                ax_map.axis(xmin=sample["telemetry"]["utmpos"][0]-30, xmax=sample["telemetry"]["utmpos"][0] + 30,
+                            ymin=sample["telemetry"]["utmpos"][1] - 30, ymax=sample["telemetry"]["utmpos"][1] + 30)
+
 
                 confidence = []
                 track_id = []
@@ -132,6 +138,7 @@ class Tracker(object):
                     bbox_tlbr.append(tlbr)
                     ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='o',
                                    color='r', s=5)
+                    ax_map.annotate(str(track.track_id), xy=(track.utm_pos[0], track.utm_pos[1]), xycoords='data')
 
                     relxyz = self.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.utm_pos)
                     Rz = relxyz[1]
@@ -150,6 +157,9 @@ class Tracker(object):
 
                     ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None, fill=False)
                     ax_radar.add_artist(ellipse)
+
+                    ellipse = Ellipse((track.utm_pos[0], track.utm_pos[1]), r1, r2, angle=angle, color="red", facecolor=None, fill=False)
+                    ax_map.add_artist(ellipse)
 
                 ori_im = draw_boxes(ori_im,
                                     bbox_tlbr,
@@ -180,7 +190,7 @@ class Tracker(object):
         plt.ioff()
 
         ani = animation.FuncAnimation(fig3Dtracking, process_data, frames=self.data_loader,
-                                      interval=1, blit=True, init_func=ani_init)
+                                      interval=50, blit=True, init_func=ani_init)
         plt.show()
 
     def deepsort_core(self, img):

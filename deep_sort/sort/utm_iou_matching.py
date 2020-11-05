@@ -55,12 +55,20 @@ def iou_cost(tracks, detections, track_indices=None,
         detection_indices = np.arange(len(detections))
 
     cost_matrix = np.zeros((len(track_indices), len(detection_indices)))
+    measurements = np.asarray(
+        [detections[i].utm_pos for i in detection_indices]).squeeze(-1).transpose()
     for row, track_idx in enumerate(track_indices):
-        if tracks[track_idx].time_since_update > 3:
+        if tracks[track_idx].time_since_update > 20:
             cost_matrix[row, :] = linear_assignment.INFTY_COST
             continue
 
-        utm_pos = tracks[track_idx].mean
-        candidates = np.asarray([detections[i].utm_pos for i in detection_indices]).squeeze(-1)
-        cost_matrix[row, :] = utm_dist(utm_pos, candidates)
+        # utm_pos = tracks[track_idx].mean
+        # cost_matrix[row, :] = utm_dist(utm_pos, measurements)
+
+        squared_maha = tracks[track_idx].kf_utm.gating_distance(
+            tracks[track_idx].mean, tracks[track_idx].covariance, measurements, True)
+
+        cost_matrix[row, squared_maha > 5.9915] = linear_assignment.INFTY_COST
+
+
     return cost_matrix
