@@ -47,6 +47,7 @@ class KalmanXYZ(object):
             8: 15.507,
             9: 16.919}
 
+        self.maxDist = 10
 
         sigmaPosX = 1
         sigmaPosY = 1
@@ -90,10 +91,20 @@ class KalmanXYZ(object):
 
         self.F_matrix = computeFmatrix(deltaT)
 
-        Q = computeCovMatrix(deltaT, sigma_aX=1, sigma_aY=1)
+        Q = computeCovMatrix(deltaT, sigma_aX=2, sigma_aY=2)
 
         self.X_state_current = (self.F_matrix @ self.X_state_current) + U
         self.P = self.F_matrix @ self.P @ self.F_matrix.transpose() + Q
+
+        # clip maximum uncertainty (otherwise it may blowup for all space)
+        eigenvalues, eigenvectors = np.linalg.eig(self.P[:2, :2])
+
+        maxEigenValue = self.maxDist**2 / self.chi2inv95[2]
+
+        for ind, eigenvalue in enumerate(eigenvalues):
+            if eigenvalue > maxEigenValue:
+                a0 = maxEigenValue / max(eigenvalues)
+                self.P[:, ind] = self.P[:, ind] * a0
 
         return self.X_state_current, self.P
 
@@ -161,3 +172,5 @@ class KalmanXYZ(object):
             overwrite_b=True)
         squared_maha = np.sum(z * z, axis=0)
         return squared_maha
+
+

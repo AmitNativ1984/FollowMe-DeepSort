@@ -11,7 +11,7 @@ INFTY_COST = 1e+5
 
 def min_cost_matching(
         distance_metric, max_distance, tracks, detections, track_indices=None,
-        detection_indices=None):
+        detection_indices=None, cam2world=None):
     """Solve linear assignment problem.
 
     Parameters
@@ -54,7 +54,7 @@ def min_cost_matching(
         return [], track_indices, detection_indices  # Nothing to match.
     # associating detections with tracks based on features
     cost_matrix = distance_metric(
-        tracks, detections, track_indices, detection_indices)
+        tracks, detections, track_indices, detection_indices, cam2world)
     cost_matrix[cost_matrix > max_distance] = max_distance + 1e-5
 
     row_indices, col_indices = linear_assignment(cost_matrix)

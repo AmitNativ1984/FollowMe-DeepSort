@@ -29,7 +29,7 @@ class Tracker(object):
         kwargs = {'batch_size': args.batch_size, 'pin_memory': True}
         dataset = ProbotSensorsDataset(args)
         self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
-        self.data_loader = iter(self.data_loader)
+        # self.data_loader = iter(self.data_loader)
         self.cam2world = Cam2World(args.img_width, args.img_height,
                                    args.thetaX, args.target_height, camAngle=0, cam_pos=cfg.CAMERA2IMU_DIST)
 
@@ -51,8 +51,11 @@ class Tracker(object):
 
         # set figures and plots:
         fig3Dtracking = plt.figure(figsize=(10, 4))
+        # to put it into the upper left corner for example:
         # utm map
         ax_map = fig3Dtracking.add_subplot(1, 2, 1)
+        ax_map.set_title("UTM")
+        ax_map.set_aspect('equal', 'box')
         # ax_map.set_aspect('equal', 'box')
         ax_map.grid(True)
 
@@ -67,13 +70,15 @@ class Tracker(object):
 
         fig3Dtracking.suptitle('UTM Tracking')
 
-        def ani_init():
-            """ init annimation """
-            ax_map.scatter([], [])
-            ax_radar.scatter([], [])
-            return ax_map, ax_radar
-
-        def process_data(sample):
+        # def ani_init():
+        #     """ init annimation """
+        #     ax_map.scatter([], [])
+        #     ax_radar.scatter([], [])
+        #     return ax_map, ax_radar
+        cv2.namedWindow('cam0', cv2.WINDOW_NORMAL)
+        plt.ion()
+        for i, sample in enumerate(self.data_loader):
+            # sample = next(self.data_loader)
             start_time = time.time()
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
             # update cam2world functions with new telemetry:
@@ -102,7 +107,7 @@ class Tracker(object):
 
                 ax_map.cla()
                 ax_map.grid(True)
-
+                ax_map.set_title("UTM")
                 for detection in detections:
                     ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
                                    marker='+', color='g')
@@ -158,7 +163,7 @@ class Tracker(object):
                     ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None, fill=False)
                     ax_radar.add_artist(ellipse)
 
-                    ellipse = Ellipse((track.utm_pos[0], track.utm_pos[1]), r1, r2, angle=angle, color="red", facecolor=None, fill=False)
+                    ellipse = Ellipse((track.utm_pos[0], track.utm_pos[1]), r1*2, r2*2, angle=angle, color="red", facecolor=None, fill=False)
                     ax_map.add_artist(ellipse)
 
                 ori_im = draw_boxes(ori_im,
@@ -172,26 +177,23 @@ class Tracker(object):
 
 
 
-                cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
-                cv2.waitKey(1)
-
-                end_time = time.time()
-                print(
-                    'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
-                        self.frame, (end_time - start_time) * 1E3, (tracking_time - start_time) * 1E3,
-                        (end_time - tracking_time) * 1E3))
+            cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
+            cv2.resizeWindow('cam0', int(1280/2), int(720/2))
+            cv2.waitKey(1)
+            plt.draw()
+            plt.pause(0.001)
+            end_time = time.time()
+            print(
+                'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
+                    self.frame, (end_time - start_time) * 1E3, (tracking_time - start_time) * 1E3,
+                    (end_time - tracking_time) * 1E3))
             self.frame += 1
 
-            if self.args.save_path:
-                self.writer.release()
 
-            return ax_map, ax_radar
+        if self.args.save_path:
+            self.writer.release()
 
-        plt.ioff()
-
-        ani = animation.FuncAnimation(fig3Dtracking, process_data, frames=self.data_loader,
-                                      interval=50, blit=True, init_func=ani_init)
-        plt.show()
+            # return ax_map, ax_radar
 
     def deepsort_core(self, img):
         ''' *** THIS IS WHERE THE MAGIC HAPPENS *** '''
@@ -203,7 +205,7 @@ class Tracker(object):
             detection.update_positions_using_telemetry(self.cam2world)
 
         # associate tracks with detections
-        tracks = self.DeepSort.track(detections, timestamp=self.cam2world.telemetry["timestamp"][0])
+        tracks = self.DeepSort.track(detections, timestamp=self.cam2world.telemetry["timestamp"][0], cam2world=self.cam2world)
 
         return tracks, detections
 
@@ -243,6 +245,7 @@ if __name__=="__main__":
     print("Using {} CPU cores".format(torch.get_num_threads()))
 
     tracker = Tracker(cfg, args)
+    plt.show()
     tracker.run()
 
 

@@ -127,6 +127,11 @@ class Cam2World(object):
 
         return xyz_rel2cam
 
+    def is_utm_coordinates_in_cam_FOV(self, utm_pos):
+        xyz_rel2cam = self.convert_utm_coordinates_to_xyz_rel2cam(utm_pos)
+        angle = np.arctan2(xyz_rel2cam[2] / xyz_rel2cam[0]) * np.pi/180
+
+
     def convert_utm_coordinates_to_bbox_center(self, utm_pos):
         xyz_rel2cam = self.convert_utm_coordinates_to_xyz_rel2cam(utm_pos)
 

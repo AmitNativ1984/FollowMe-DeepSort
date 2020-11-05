@@ -40,7 +40,7 @@ def iou(bbox, candidates):
 
 
 def iou_cost(tracks, detections, track_indices=None,
-             detection_indices=None):
+             detection_indices=None, cam2world=None):
     """An intersection over union distance metric.
 
     Parameters
@@ -71,11 +71,15 @@ def iou_cost(tracks, detections, track_indices=None,
 
     cost_matrix = np.zeros((len(track_indices), len(detection_indices)))
     for row, track_idx in enumerate(track_indices):
-        if tracks[track_idx].time_since_update > 1:
+        if tracks[track_idx].time_since_update > 20:
             cost_matrix[row, :] = linear_assignment.INFTY_COST
             continue
 
-        bbox = tracks[track_idx].to_tlwh()
+        r0, c0 = cam2world.convert_utm_coordinates_to_bbox_center(tracks[track_idx].utm_pos)
+        xmin, ymin, xmax, ymax = np.array([c0[0] - tracks[track_idx].bbox_width / 2, r0[0] - tracks[track_idx].bbox_height / 2,
+                         c0[0] + tracks[track_idx].bbox_width / 2 + 1, r0[0] + tracks[track_idx].bbox_height / 2 + 1])
+
+        bbox = np.array([xmin, ymin, xmax-xmin, ymax-ymin])
         candidates = np.asarray([detections[i].tlwh for i in detection_indices])
         cost_matrix[row, :] = 1. - iou(bbox, candidates)
     return cost_matrix

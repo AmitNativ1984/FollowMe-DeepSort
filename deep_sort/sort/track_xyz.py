@@ -85,10 +85,9 @@ class Track:
         self.utm_pos = detection.utm_pos
         self.confidence = detection.confidence
         self.kf_utm = kf    # kalman filter
-        self.bbox_width = []
-        self.bbox_height = []
-        self.cov_eigenvalues = []
-        self.cov_eigenvectors = []
+        self.bbox_width = detection.tlwh[2]
+        self.bbox_height = detection.tlwh[3]
+        self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(covariance[:2, :2], dims=2)
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,

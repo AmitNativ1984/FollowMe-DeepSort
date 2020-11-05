@@ -4,12 +4,13 @@ DEEPSORT:
   MAX_DIST: 0.2  # distance between features of detections to be considered same object
   MIN_CONFIDENCE: 0.2
   NMS_MAX_OVERLAP: 0.4  # non max suppression between near objects
-  MAX_IOU_DISTANCE: 0.9  # distance in term of IOU distance between detections of same object
-  MAX_AGE: 800           # tracks that exceed this frame number without successfull association of measurement have left scene
+  MAX_IOU_DISTANCE: 0.9  # distance in term of 1-IOUmin track and detection of same object
+  MAX_UNCERTAINTY_RADIUS: 7 # [m] max acceptable uncertainty of Kalman filter
+  MAX_AGE: 500           # tracks that exceed this frame number without successfull association of measurement have left scene
   N_INIT: 10           # number of frames to init a track
   NN_BUDGET: 300        # number of associated appearances descriptors on each track
 
-NUM_CPU_CORES: 1
+NUM_CPU_CORES: 4
 
 CLS_DICT:
   '0': 'person'

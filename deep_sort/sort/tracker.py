@@ -7,7 +7,7 @@ from . import kalman_filter_xyz
 UTM_TRACKING = True
 from . import iou_matching
 from . import linear_assignment
-from . import utm_iou_matching as iou_matching
+from . import utm_iou_matching as utm_dist_matching
 from . import utm_linear_assignment
 
 if UTM_TRACKING:
@@ -68,7 +68,7 @@ class Tracker:
             else:
                 track.predict(self.kf)
 
-    def update(self, detections):
+    def update(self, detections, cam2world=None):
         """Perform measurement update and track management.
 
         Parameters
@@ -79,7 +79,7 @@ class Tracker:
         """
         # Run matching cascade. (hungarian algorithm)
         matches, unmatched_tracks, unmatched_detections = \
-            self._match(detections)
+            self._match(detections, cam2world)
 
         # Update track set.
         for track_idx, detection_idx in matches:    # update tracks with matched detections
@@ -105,9 +105,9 @@ class Tracker:
         self.metric.partial_fit(
             np.asarray(features), np.asarray(targets), active_targets)
 
-    def _match(self, detections):
+    def _match(self, detections, cam2world):
 
-        def gated_metric(tracks, dets, track_indices, detection_indices):
+        def gated_metric(tracks, dets, track_indices, detection_indices, cam2world=None):
             features = np.array([dets[i].feature for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
             cost_matrix = self.metric.distance(features, targets)
@@ -155,13 +155,13 @@ class Tracker:
         if False:
             matches_b, unmatched_tracks_b, unmatched_detections = \
                 utm_linear_assignment.min_cost_matching(
-                    iou_matching.iou_cost, self.max_iou_distance, self.tracks,
+                    utm_dist_matching.iou_cost, self.max_iou_distance, self.tracks,
                     detections, iou_track_candidates, unmatched_detections)
         else:
             matches_b, unmatched_tracks_b, unmatched_detections = \
                 linear_assignment.min_cost_matching(
                     iou_matching.iou_cost, self.max_iou_distance, self.tracks,
-                    detections, iou_track_candidates, unmatched_detections)
+                    detections, iou_track_candidates, unmatched_detections, cam2world)
 
         matches = matches_a + matches_b
         unmatched_tracks = list(set(unmatched_tracks_a + unmatched_tracks_b))
