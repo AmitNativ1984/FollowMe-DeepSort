@@ -5,16 +5,16 @@ from . import kalman_filter
 from . import kalman_filter_xyz
 
 UTM_TRACKING = True
+from . import iou_matching
+from . import linear_assignment
+from . import utm_iou_matching as iou_matching
+from . import utm_linear_assignment
 
 if UTM_TRACKING:
     from .track_xyz import Track
-    from . import utm_iou_matching as iou_matching
-    from . import utm_linear_assignment
-
 else:
     from .track import Track
-    from . import iou_matching
-    from . import linear_assignment
+
 
 class Tracker:
     """
@@ -152,7 +152,7 @@ class Tracker:
             self.tracks[k].time_since_update != 1]
 
         # Associate unmatched tracks and unmatched detections using IoU
-        if UTM_TRACKING:
+        if False:
             matches_b, unmatched_tracks_b, unmatched_detections = \
                 utm_linear_assignment.min_cost_matching(
                     iou_matching.iou_cost, self.max_iou_distance, self.tracks,
