@@ -137,9 +137,10 @@ class Tracker(object):
                     track_id.append(track.track_id)
                     cls_names.append(self.cls_dict[track.cls_id])
                     utm_pos.append(track.utm_pos)
-                    r0, c0 = self.cam2world.convert_utm_coordinates_to_bbox_center(track.utm_pos)
-                    tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
-                                      c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
+                    r0, c0, h = self.cam2world.convert_utm_coordinates_to_bbox_center(track.utm_pos)
+                    # tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
+                    #                   c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
+                    tlbr = track.utm_to_bbox_tlbr(self.cam2world)
                     bbox_tlbr.append(tlbr)
                     ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='o',
                                    color='r', s=5)
