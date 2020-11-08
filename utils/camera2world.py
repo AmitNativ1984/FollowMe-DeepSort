@@ -108,13 +108,15 @@ class Cam2World(object):
         col_center = x / y * self.F0 + self.W / 2
         row_center = -z / y * self.F0 + self.H / 2
 
-        return row_center, col_center
+        height = self.obj_height_meters / y * self.F0
+
+        return row_center, col_center, height
 
     def convert_utm_coordinates_to_xyz_rel2imu(self, utm_pos):
         # from utm coordinates to xyz coordinates relative to imu:
         return np.linalg.inv(self.R_yaw) @ (utm_pos - self.telemetry["utmpos"])
 
-    def convert_xyz_rel2imu_to_xyz_rel2vam(self, xyz_rel2imu):
+    def convert_xyz_rel2imu_to_xyz_rel2cam(self, xyz_rel2imu):
         # from xyz rel2imu and aligned to vehicle 12 O'clock, to xyz_rel2cam
         return np.linalg.inv(self.R_cam) @ (xyz_rel2imu - self.cam_position_rel_to_imu)
 
@@ -123,7 +125,7 @@ class Cam2World(object):
         xyz_rel2imu = self.convert_utm_coordinates_to_xyz_rel2imu(utm_pos)
 
         # from xyz rel2imu and aligned to vehicle 12 O'clock, to xyz_rel2cam
-        xyz_rel2cam = self.convert_xyz_rel2imu_to_xyz_rel2vam(xyz_rel2imu)
+        xyz_rel2cam = self.convert_xyz_rel2imu_to_xyz_rel2cam(xyz_rel2imu)
 
         return xyz_rel2cam
 
@@ -135,9 +137,9 @@ class Cam2World(object):
     def convert_utm_coordinates_to_bbox_center(self, utm_pos):
         xyz_rel2cam = self.convert_utm_coordinates_to_xyz_rel2cam(utm_pos)
 
-        row_center, col_center = self.convert_relative_to_camera_xyz_to_bbox_center(xyz_rel2cam)
+        row_center, col_center, height = self.convert_relative_to_camera_xyz_to_bbox_center(xyz_rel2cam)
 
-        return row_center, col_center
+        return row_center, col_center, height
 
     def get_target_relative_xyz(self, robot_utm, target_utm):
         relative_xyz = -robot_utm + target_utm
@@ -164,7 +166,7 @@ class Cam2World(object):
         target_xyz = np.matmul(RotationMat, target_relative_pos) - camera_pos_on_vehicle
         return target_xyz
 
-    def xyz2rowcol(self, target_xyz):
+    def convert_xyz_rel2cam_to_bbox(self, target_xyz, org_bbox_tlwh):
         # todo: add rows too!!!!
         col = self.project_xyz_in_local_camera_coordinates_to_pixels(target_xyz)
 
