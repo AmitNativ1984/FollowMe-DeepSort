@@ -104,7 +104,8 @@ class KalmanXYZ(object):
         for ind, eigenvalue in enumerate(eigenvalues):
             if eigenvalue > maxEigenValue:
                 a0 = maxEigenValue / max(eigenvalues)
-                self.P[:, ind] = self.P[:, ind] * a0
+                self.P[:, ind] = self.P[:, ind] * np.sqrt(a0)
+                self.P[ind, :] = self.P[ind, :] * np.sqrt(a0)
 
         return self.X_state_current, self.P
 
