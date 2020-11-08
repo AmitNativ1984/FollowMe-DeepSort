@@ -67,7 +67,7 @@ class Detection(object):
         self.timestamp = cam2world.telemetry["timestamp"][0]
 
     def project_utm_to_bbox_tlwh(self, cam2world, utm_pos):
-        row, col = cam2world.convert_utm_coordinates_to_bbox_center(utm_pos)
+        row, col, height = cam2world.convert_utm_coordinates_to_bbox_center(utm_pos)
         bbox_tlwh = self.tlwh.copy()
         bbox_tlwh[0] = col - bbox_tlwh[2]/2
         bbox_tlwh[1] = row - bbox_tlwh[3]/2
