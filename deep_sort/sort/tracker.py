@@ -57,14 +57,14 @@ class Tracker:
         self.tracks = []
         self._next_id = 1
 
-    def predict(self, camera2world=None):
+    def predict(self, timestamp=None, camera2world=None):
         """Propagate track state distributions one time step forward.
 
         This function should be called once every time step, before `update`.
         """
         for track in self.tracks:
             if UTM_TRACKING:
-                track.predict(camera2world)
+                track.predict(timestamp, camera2world)
             else:
                 track.predict(self.kf)
 
