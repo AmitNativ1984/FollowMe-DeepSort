@@ -64,7 +64,7 @@ class DeepSort(object):
     def track(self, detections, timestamp, cam2world):
 
         # update tracker
-        self.tracker.predict(timestamp)  # predicting bbox position based on kf
+        self.tracker.predict(timestamp, cam2world)  # predicting bbox position based on kf
         self.tracker.update(detections, cam2world) # matching bbox to known tracks / creating new tracks
 
         # output bbox identities
