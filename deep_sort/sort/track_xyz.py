@@ -87,7 +87,10 @@ class Track:
         self.kf_utm = kf    # kalman filter
         self.bbox_width = detection.tlwh[2]
         self.bbox_height = detection.tlwh[3]
+        self.detection_xyah = detection.to_xyah()
         self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(covariance[:2, :2], dims=2)
+        self.xyz_rel2cam = detection.xyz_rel2cam
+        self.imu_utm = None
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -118,13 +121,20 @@ class Track:
         ret[2:] = ret[:2] + ret[2:]
         return ret
 
-    def to_x0y0wh(self):
-        ret = self.to_tlwh()
-        ret[0] = (ret[0] + ret[2])/2
-        ret[1] = (ret[1] + ret[3]) / 2
-        return ret
+    def utm_to_bbox_tlbr(self, cam2world):
+        r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.utm_pos)
 
-    def predict(self, time_stamp):
+        aspect_ratio = self.detection_xyah[-2]
+        width = height * aspect_ratio
+
+        xmin = c0 - width/2
+        ymin = r0 - height/2
+        xmax = c0 + width/2
+        ymax = r0 + height/2
+
+        return np.array([xmin,ymin, xmax,ymax])
+
+    def predict(self, time_stamp, cam2world):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
@@ -134,6 +144,7 @@ class Track:
             The Kalman filter.
 
         """
+        curr_pos = self.mean
         self.mean, self.covariance = self.kf_utm.predict(time_stamp)
         self.age += 1
         self.time_since_update += 1
@@ -141,7 +152,17 @@ class Track:
         # calculating gating area:
         self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(self.covariance[:2, :2])
 
-    def update(self, detection):
+        # calculate predicted bbox
+        curr_target_xyz_rel2cam = self.xyz_rel2cam
+        self.utm_pos = np.vstack((self.mean[:2], self.utm_pos[-1]))
+        r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.utm_pos)
+
+        self.bbox_height = height[0]
+        self.bbox_width = height[0] * self.detection_xyah[-2]
+
+
+
+    def update(self, detection, cam2world=None):
         """Perform Kalman filter measurement update step and update the feature
         cache.
 
@@ -157,14 +178,14 @@ class Track:
         self.features.append(detection.feature)
         self.confidence = detection.confidence
         self.cls_id = detection.cls_id
-        # todo: handle last coordinate in utm:..->
         self.utm_pos = np.vstack((self.mean[:2], detection.utm_pos[-1]))
-        # self.bbox_tlwh = detection.project_utm_to_bbox_tlwh(self.utm_pos)
-
+        self.xyz_rel2cam = detection.xyz_rel2cam
+        self.detection_xyah = detection.to_xyah()
         x0y0ah = detection.to_xyah()
-        self.bbox_height = x0y0ah[-1]
-        self.bbox_width = x0y0ah[2] * self.bbox_height
-
+        # r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.utm_pos)
+        # # TODO: project bbox to image plane based on distance to cam
+        # # self.bbox_height = x0y0ah[-1]
+        # self.bbox_width = x0y0ah[-2] * self.bbox_height
 
         self.hits += 1
         self.time_since_update = 0
