@@ -71,7 +71,7 @@ def iou_cost(tracks, detections, track_indices=None,
 
     cost_matrix = np.zeros((len(track_indices), len(detection_indices)))
     for row, track_idx in enumerate(track_indices):
-        if tracks[track_idx].time_since_update > 20:
+        if tracks[track_idx].time_since_update > 20 or not tracks[track_idx].in_cam_FOV:
             cost_matrix[row, :] = linear_assignment.INFTY_COST
             continue
 

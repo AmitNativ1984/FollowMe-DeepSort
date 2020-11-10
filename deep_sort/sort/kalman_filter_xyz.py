@@ -63,9 +63,9 @@ class KalmanXYZ(object):
         sigmaPosX = 1
         sigmaPosY = 1
         sigmaPosZ = 1
-        sigmaVelX = 100
-        sigmaVelY = 100
-        sigmaVelZ = 100
+        sigmaVelX = 10
+        sigmaVelY = 10
+        sigmaVelZ = 10
 
         self.P = np.array([[sigmaPosX,      0.,        0.,          0.,        0.,         0.],
                            [0.,      sigmaPosY,        0.,          0.,        0.,         0.],
@@ -120,7 +120,6 @@ class KalmanXYZ(object):
         eigenvalues, eigenvectors = np.linalg.eig(self.P[:3, :3])
 
         maxEigenValue = self.max_uncertainty_radius ** 2 / self.chi2inv95[2]
-
         for ind, eigenvalue in enumerate(eigenvalues):
             if eigenvalue > maxEigenValue:
                 a0 = maxEigenValue / max(eigenvalues)

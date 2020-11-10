@@ -62,8 +62,8 @@ class Detection(object):
 
     def update_positions_using_telemetry(self, cam2world):
         tlbr = self.to_tlbr()
-        self.utm_pos = cam2world.convert_bbox_tlbr_to_utm_coordinates(tlbr)
-        self.xyz_rel2cam = cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(tlbr)
+        self.utm_pos = cam2world.convert_bbox_tlbr_to_utm(tlbr)
+        self.xyz_rel2cam = cam2world.convert_bbox_tlbr_to_xyz_rel2cam(tlbr)
         self.timestamp = cam2world.telemetry["timestamp"][0]
 
     def project_utm_to_bbox_tlwh(self, cam2world, utm_pos):

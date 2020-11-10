@@ -31,7 +31,7 @@ class Tracker(object):
         self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
         # self.data_loader = iter(self.data_loader)
         self.cam2world = Cam2World(args.img_width, args.img_height,
-                                   args.thetaX, args.target_height, camAngle=0, cam_pos=cfg.CAMERA2IMU_DIST)
+                                   args.thetaX, args.target_height, cam_yaw_pitch_roll=cfg.CAMERA_YAW_PITCH_ROLL, cam_pos=cfg.CAMERA2IMU_DIST)
 
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
         self.vdo = cv2.VideoCapture()
@@ -114,7 +114,7 @@ class Tracker(object):
                     ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
                                    marker='+', color='g')
 
-                    relxyz = self.cam2world.convert_bbox_tlbr_to_relative_to_camera_xyz(detection.to_tlbr())
+                    relxyz = self.cam2world.convert_bbox_tlbr_to_xyz_rel2cam(detection.to_tlbr())
                     Rz = relxyz[1]
                     Rx = relxyz[0]
                     R = np.sqrt(Rz ** 2 + Rx ** 2)
@@ -135,15 +135,17 @@ class Tracker(object):
                 bbox_tlbr = []
 
                 for ind, track in enumerate(tracks):
-                    confidence.append(track.confidence)
-                    track_id.append(track.track_id)
-                    cls_names.append(self.cls_dict[track.cls_id])
                     utm_pos.append(track.mean)
                     r0, c0, h = self.cam2world.convert_utm_coordinates_to_bbox_center(track.mean[:3])
                     # tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
                     #                   c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
                     tlbr = track.utm_to_bbox_tlbr(self.cam2world)
-                    bbox_tlbr.append(tlbr)
+                    if track.in_cam_FOV:
+                        bbox_tlbr.append(tlbr)
+                        confidence.append(track.confidence)
+                        track_id.append(track.track_id)
+                        cls_names.append(self.cls_dict[track.cls_id])
+
                     ax_map.scatter(track.mean[0], track.mean[1], marker='o',
                                    color='r', s=5)
                     ax_map.annotate(str(track.track_id), xy=(track.mean[0], track.mean[1]), xycoords='data')

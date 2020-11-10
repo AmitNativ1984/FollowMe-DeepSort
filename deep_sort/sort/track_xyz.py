@@ -154,6 +154,8 @@ class Track:
         self.age += 1
         self.time_since_update += 1
 
+        self.in_cam_FOV = cam2world.is_utm_coordinates_in_cam_FOV(self.mean[:3])
+
         # calculating gating area:
         self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(self.covariance[:2, :2])
 
