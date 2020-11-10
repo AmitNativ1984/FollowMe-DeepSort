@@ -75,7 +75,7 @@ def iou_cost(tracks, detections, track_indices=None,
             cost_matrix[row, :] = linear_assignment.INFTY_COST
             continue
 
-        r0, c0, h = cam2world.convert_utm_coordinates_to_bbox_center(tracks[track_idx].utm_pos)
+        r0, c0, h = cam2world.convert_utm_coordinates_to_bbox_center(tracks[track_idx].mean[:3])
         xmin, ymin, xmax, ymax = np.array([c0[0] - tracks[track_idx].bbox_width / 2, r0[0] - tracks[track_idx].bbox_height / 2,
                          c0[0] + tracks[track_idx].bbox_width / 2 + 1, r0[0] + tracks[track_idx].bbox_height / 2 + 1])
 

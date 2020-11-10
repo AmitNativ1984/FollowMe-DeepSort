@@ -2,7 +2,7 @@
 from __future__ import absolute_import
 import numpy as np
 from . import kalman_filter
-from . import kalman_filter_xyz
+from .kalman_filter_xyz import KalmanXYZ
 
 UTM_TRACKING = True
 from . import iou_matching
@@ -46,14 +46,13 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, max_iou_distance=0.7, max_age=70, n_init=3):
+    def __init__(self, metric, max_iou_distance=0.7, max_age=70, n_init=3, max_uncertainty_radius=10):
         self.metric = metric
         self.max_iou_distance = max_iou_distance
         self.max_age = max_age
         self.n_init = n_init
-
-        self.kf = kalman_filter.KalmanFilter()
-        self.kf_utm = kalman_filter_xyz.KalmanXYZ
+        self.max_uncertainty_radius = max_uncertainty_radius
+        # self.kf = kalman_filter.KalmanFilter()
         self.tracks = []
         self._next_id = 1
 
@@ -169,7 +168,7 @@ class Tracker:
 
     def _initiate_track(self, detection):
         if UTM_TRACKING:
-            new_kf = kalman_filter_xyz.KalmanXYZ()
+            new_kf = KalmanXYZ(self.max_uncertainty_radius)
             mean, covariance = new_kf.initiate(detection.timestamp, detection.utm_pos)
             self.tracks.append(Track(
                 kf=new_kf, mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,

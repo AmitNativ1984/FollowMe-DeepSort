@@ -21,34 +21,47 @@ class Cam2World(object):
     def digest_new_telemetry(self, telemetry):
         """" update all matrices with new telemerty data """
         yaw = telemetry["yaw_pitch_roll"][0][0]
-        while yaw > 360:
-            yaw -= 360
-        while yaw > 360:
-            yaw -= 360
-        telemetry["yaw_pitch_roll"][0][0] = yaw
 
+        def remove_360_deg_periods(deg):
+            while deg > 360:
+                deg -= 360
+            while deg < -360:
+                deg += 360
+            return deg
+
+        telemetry["yaw_pitch_roll"][0] = [remove_360_deg_periods(deg) for deg in telemetry["yaw_pitch_roll"][0]]
+
+        # convert deg to rad:
         telemetry["yaw_pitch_roll"][0] *= np.pi / 180
 
         self.telemetry = telemetry
         self.telemetry["utmpos"] = self.telemetry["utmpos"].transpose()
 
-        self.R_yaw, self.R_cam = self.calc_rotation_matrices()
+        self.R_yaw_pitch_roll, self.R_cam = self.calc_rotation_matrices()
         # self.T = self.calc_cam_translation()
 
     def calc_rotation_matrices(self):
-        yaw, _, _ = self.telemetry["yaw_pitch_roll"][0]
+        yaw, pitch, roll = self.telemetry["yaw_pitch_roll"][0]
 
         # rotate cam according to robot yaw
         R_yaw = np.array([[np.cos(yaw),  np.sin(yaw), 0],
                           [-np.sin(yaw), np.cos(yaw), 0],
                           [0,            0,           1]])
 
+        R_pitch = np.array([[np.cos(pitch),  0.,    np.sin(pitch)],
+                            [0.,             1.,               0.],
+                            [-np.sin(pitch), 0.,    np.cos(pitch)]])
+
+        R_roll = np.array([[1.,              0.,                          0.],
+                           [0.,              np.cos(roll),      np.sin(roll)],
+                           [0.,             -np.sin(roll),      np.cos(roll)]])
+
         # rotate cam relative to robot
         R_cam = np.array([[np.cos(self.camAngle), -np.sin(self.camAngle), 0],
                           [np.sin(self.camAngle), np.cos(self.camAngle),  0],
                           [0,                      0,                     1]])
-
-        return R_yaw, R_cam
+        R_yaw_pitch_roll = R_yaw @ R_pitch @ R_roll
+        return R_yaw_pitch_roll, R_cam
 
     def pix2angle(self, x, y):
         """ returns the vetical and horizontal angles of a ray transmitted through pixel (y,x)"""
@@ -98,7 +111,7 @@ class Cam2World(object):
 
         # rotate target xyz position relative to north (yaw angle) and add telemetry to get total utm pos
         """ utm_pos is [long, lat, height] = [x,z,y] """
-        utm_pos = self.R_yaw @ xyz_rel2imu + self.telemetry["utmpos"]
+        utm_pos = self.R_yaw_pitch_roll @ xyz_rel2imu + self.telemetry["utmpos"]
 
         return utm_pos
 
@@ -114,7 +127,7 @@ class Cam2World(object):
 
     def convert_utm_coordinates_to_xyz_rel2imu(self, utm_pos):
         # from utm coordinates to xyz coordinates relative to imu:
-        return np.linalg.inv(self.R_yaw) @ (utm_pos - self.telemetry["utmpos"])
+        return np.linalg.inv(self.R_yaw_pitch_roll) @ (utm_pos - self.telemetry["utmpos"])
 
     def convert_xyz_rel2imu_to_xyz_rel2cam(self, xyz_rel2imu):
         # from xyz rel2imu and aligned to vehicle 12 O'clock, to xyz_rel2cam

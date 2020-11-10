@@ -51,6 +51,8 @@ class Tracker(object):
 
         # set figures and plots:
         fig3Dtracking = plt.figure(figsize=(10, 4))
+        plt.get_current_fig_manager().window.wm_geometry("+0+0")
+
         # to put it into the upper left corner for example:
         # utm map
         ax_map = fig3Dtracking.add_subplot(1, 2, 1)
@@ -136,17 +138,17 @@ class Tracker(object):
                     confidence.append(track.confidence)
                     track_id.append(track.track_id)
                     cls_names.append(self.cls_dict[track.cls_id])
-                    utm_pos.append(track.utm_pos)
-                    r0, c0, h = self.cam2world.convert_utm_coordinates_to_bbox_center(track.utm_pos)
+                    utm_pos.append(track.mean)
+                    r0, c0, h = self.cam2world.convert_utm_coordinates_to_bbox_center(track.mean[:3])
                     # tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
                     #                   c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
                     tlbr = track.utm_to_bbox_tlbr(self.cam2world)
                     bbox_tlbr.append(tlbr)
-                    ax_map.scatter(track.utm_pos[0], track.utm_pos[1], marker='o',
+                    ax_map.scatter(track.mean[0], track.mean[1], marker='o',
                                    color='r', s=5)
-                    ax_map.annotate(str(track.track_id), xy=(track.utm_pos[0], track.utm_pos[1]), xycoords='data')
+                    ax_map.annotate(str(track.track_id), xy=(track.mean[0], track.mean[1]), xycoords='data')
 
-                    relxyz = self.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.utm_pos)
+                    relxyz = self.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.mean[:3])
                     Rz = relxyz[1]
                     Rx = relxyz[0]
                     R = np.sqrt(Rz ** 2 + Rx ** 2)
@@ -164,7 +166,7 @@ class Tracker(object):
                     ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None, fill=False)
                     ax_radar.add_artist(ellipse)
 
-                    ellipse = Ellipse((track.utm_pos[0], track.utm_pos[1]), r1*2, r2*2, angle=angle, color="red", facecolor=None, fill=False)
+                    ellipse = Ellipse((track.mean[0], track.mean[1]), r1*2, r2*2, angle=angle, color="red", facecolor=None, fill=False)
                     ax_map.add_artist(ellipse)
 
                 ori_im = draw_boxes(ori_im,

@@ -82,7 +82,7 @@ class Track:
         self._max_age = max_age
         self.cls_id = detection.cls_id
         self.covariance = detection.confidence
-        self.utm_pos = detection.utm_pos
+        # self.utm_pos = detection.utm_pos
         self.confidence = detection.confidence
         self.kf_utm = kf    # kalman filter
         self.bbox_width = detection.tlwh[2]
@@ -122,7 +122,7 @@ class Track:
         return ret
 
     def utm_to_bbox_tlbr(self, cam2world):
-        r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.utm_pos)
+        r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.mean[:3])
 
         aspect_ratio = self.detection_xyah[-2]
         width = height * aspect_ratio
@@ -138,29 +138,24 @@ class Track:
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
+        The predicted position in predicted only if target was detected in prev frame. otherwise, target is occluded,
+        and only the uncertainty is progressed by another prediction step
+
         Parameters
         ----------
         kf : kalman_filter.KalmanFilter
             The Kalman filter.
 
         """
-        curr_pos = self.mean
-        self.mean, self.covariance = self.kf_utm.predict(time_stamp)
+        if self.time_since_update == 0:
+            self.mean, self.covariance = self.kf_utm.predict(time_stamp)
+        else:
+            _, self.covariance = self.kf_utm.predict(time_stamp)
         self.age += 1
         self.time_since_update += 1
 
         # calculating gating area:
         self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(self.covariance[:2, :2])
-
-        # calculate predicted bbox
-        curr_target_xyz_rel2cam = self.xyz_rel2cam
-        self.utm_pos = np.vstack((self.mean[:2], self.utm_pos[-1]))
-        r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.utm_pos)
-
-        self.bbox_height = height[0]
-        self.bbox_width = height[0] * self.detection_xyah[-2]
-
-
 
     def update(self, detection, cam2world=None):
         """Perform Kalman filter measurement update step and update the feature
@@ -178,7 +173,6 @@ class Track:
         self.features.append(detection.feature)
         self.confidence = detection.confidence
         self.cls_id = detection.cls_id
-        self.utm_pos = np.vstack((self.mean[:2], detection.utm_pos[-1]))
         self.xyz_rel2cam = detection.xyz_rel2cam
         self.detection_xyah = detection.to_xyah()
         x0y0ah = detection.to_xyah()

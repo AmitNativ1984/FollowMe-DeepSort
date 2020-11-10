@@ -3,15 +3,18 @@ import scipy
 
 
 
-def computeCovMatrix(deltaT, sigma_aX, sigma_aY):
+def computeCovMatrix(deltaT, sigma_aX, sigma_aY, sigma_aZ):
 
-    G = np.array([[deltaT ** 2 / 2.,                 0.],
-                    [0.,                 deltaT ** 2. / 2.],
-                    [deltaT,                          0.],
-                    [0.,                          deltaT]])
+    G = np.array([[deltaT ** 2 / 2.,                0.,                        0.],
+                  [0.,               deltaT ** 2. / 2.,                        0.],
+                  [0.,                              0.,         deltaT ** 2. / 2.],
+                  [deltaT,                          0.,                        0.],
+                  [0.,                          deltaT,                        0.],
+                  [0.,                              0.,         deltaT ** 2. / 2.]])
 
-    Q_ni = np.array([[sigma_aX ** 2.,                0.],
-                     [0.,                     sigma_aY]])
+    Q_ni = np.array([[sigma_aX ** 2.,                0.,                    0.],
+                     [0.,                      sigma_aY,                    0.],
+                     [0.,                            0.,         sigma_aZ **2.]])
 
 
     Q = G @ Q_ni @ G.transpose()
@@ -19,18 +22,26 @@ def computeCovMatrix(deltaT, sigma_aX, sigma_aY):
     return Q
 
 def computeFmatrix(deltaT):
+    """ X = (x,y,z,vx,vy,vz)
+        in UTM coordinates, the state_space is:
+        x = lat
+        y = long,
+        z = alt
+    """
 
-    F = np.array([[1.,      0.,  deltaT,          0.],
-                  [0.,      1.,      0.,      deltaT],
-                  [0.,      0.,      1.,           0.],
-                  [0.,      0.,      0.,           1.]])
+    F = np.array([[1.,      0.,      0.,    deltaT,           0.,            0.],
+                  [0.,      1.,      0.,         0.,      deltaT,            0.],
+                  [0.,      0.,      1.,         0.,          0.,        deltaT],
+                  [0.,      0.,      0.,         1.,          0.,            0.],
+                  [0.,      0.,      0.,         0.,          1.,            0.],
+                  [0.,      0.,      0.,         0.,          0.,            1.]])
 
     return F
 
 class KalmanXYZ(object):
     """ kalman filter for linear measurements """
 
-    def __init__(self):
+    def __init__(self, MAX_KF_UNCERTAINTY_RADIUS=7):
         """
                 Table for the 0.95 quantile of the chi-square distribution with N degrees of
                 freedom (contains values for N=1, ..., 9). Taken from MATLAB/Octave's chi2inv
@@ -47,30 +58,37 @@ class KalmanXYZ(object):
             8: 15.507,
             9: 16.919}
 
-        self.maxDist = 10
+        self.max_uncertainty_radius = MAX_KF_UNCERTAINTY_RADIUS
 
         sigmaPosX = 1
         sigmaPosY = 1
+        sigmaPosZ = 1
         sigmaVelX = 100
         sigmaVelY = 100
+        sigmaVelZ = 100
 
-        self.P = np.array([[sigmaPosX,      0.,      0.,      0.],
-                           [0.,       sigmaPosY,     0.,      0.],
-                           [0.,       0.,      sigmaVelX,    0.],
-                           [0.,       0.,      0.,    sigmaVelY]])
+        self.P = np.array([[sigmaPosX,      0.,        0.,          0.,        0.,         0.],
+                           [0.,      sigmaPosY,        0.,          0.,        0.,         0.],
+                           [0.,             0., sigmaPosZ,          0.,        0.,         0.],
+                           [0.,             0.,        0.,   sigmaVelX,        0.,         0.],
+                           [0.,             0.,        0.,          0.,  sigmaVelY,        0.],
+                           [0.,             0.,        0.,          0.,         0., sigmaVelZ]])
 
         # projection from sensor to state space
-        self.H = np.array([[1.,     0.,      0.,      0.],
-                           [0.,     1.,      0.,      0.]])
+        self.H = np.array([[1.,     0.,      0.,      0.,       0.,     0.],
+                           [0.,     1.,      0.,      0.,       0.,     0.],
+                           [0.,     0.,      1.,      0.,       0.,     0.]])
 
         # image detection noise (in meters)
         sensor_acc_X = 5
         sensor_acc_Y = 5
-        self.R = np.array([[sensor_acc_X,        0.0],
-                           [0.0,        sensor_acc_Y]])
+        sensor_acc_Z = 0.5
+        self.R = np.array([[sensor_acc_X,        0.0,                0.0],
+                           [0.0,        sensor_acc_Y,                0.0],
+                           [0.0,                 0.0,       sensor_acc_Z]])
 
-    def initiate(self, timestamp, x0):
-        self.X_state_current = np.vstack((x0[:2], 0, 0))
+    def initiate(self, timestamp, utm_pos0, vel0=np.array([[0], [0], [0]])):
+        self.X_state_current = np.vstack((utm_pos0, 0, 0, 0))
         self.timestamp = timestamp
 
         return self.X_state_current, self.P
@@ -84,6 +102,8 @@ class KalmanXYZ(object):
             U = np.array([[0],
                           [0],
                           [0],
+                          [0],
+                          [0],
                           [0]])
 
         deltaT = (new_timestamp - self.timestamp) / 1E3
@@ -91,15 +111,15 @@ class KalmanXYZ(object):
 
         self.F_matrix = computeFmatrix(deltaT)
 
-        Q = computeCovMatrix(deltaT, sigma_aX=2, sigma_aY=2)
+        Q = computeCovMatrix(deltaT, sigma_aX=2, sigma_aY=2, sigma_aZ=2)
 
         self.X_state_current = (self.F_matrix @ self.X_state_current) + U
         self.P = self.F_matrix @ self.P @ self.F_matrix.transpose() + Q
 
         # clip maximum uncertainty (otherwise it may blowup for all space)
-        eigenvalues, eigenvectors = np.linalg.eig(self.P[:2, :2])
+        eigenvalues, eigenvectors = np.linalg.eig(self.P[:3, :3])
 
-        maxEigenValue = self.maxDist**2 / self.chi2inv95[2]
+        maxEigenValue = self.max_uncertainty_radius ** 2 / self.chi2inv95[2]
 
         for ind, eigenvalue in enumerate(eigenvalues):
             if eigenvalue > maxEigenValue:
@@ -117,7 +137,7 @@ class KalmanXYZ(object):
         :return:
         """
         I = np.identity(self.P.shape[0])
-        z = currentMeas[:2]
+        z = currentMeas
 
         z_pred = self.H @ self.X_state_current
         y = z - z_pred

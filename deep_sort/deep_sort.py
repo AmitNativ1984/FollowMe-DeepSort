@@ -26,7 +26,8 @@ class DeepSort(object):
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, cfg.DEEPSORT.NN_BUDGET)
         self.tracker = Tracker(metric, max_iou_distance=cfg.DEEPSORT.MAX_IOU_DISTANCE,
                                max_age=cfg.DEEPSORT.MAX_AGE,
-                               n_init=cfg.DEEPSORT.N_INIT)
+                               n_init=cfg.DEEPSORT.N_INIT,
+                               max_uncertainty_radius=cfg.DEEPSORT.MAX_KF_UNCERTAINTY_RADIUS)
 
         k, v = zip(*list(cfg.CLS_DICT.items())[:-2])
         k = [int(x) for x in k]
