@@ -15,11 +15,11 @@ class DeepSortLogger(object):
         date, time = (str(datetime.now())).split(' ')
         time = time.split('.')[0].replace(":", "-")
         date = (str(datetime.now())).split(' ')[0]
-        full_log_path = os.path.join(os.environ['TERRA_NAVA_LOG_DIR'], 'followme', date + "_" + time)
+        full_log_path = os.path.join(os.environ['TERRA_NAVA_LOG_DIR'], 'followme')
         os.makedirs(full_log_path, exist_ok=True)
 
         log_name = "DeepSort"
-        filename = os.path.join(full_log_path, 'tracks.log')
+        filename = os.path.join(full_log_path, 'tracks_' + date + "_" + time + '.log')
 
         logger = getLogger(log_name)
         logger.setLevel(logging.DEBUG)
@@ -42,19 +42,21 @@ class DeepSortLogger(object):
 
         return logger
 
-    def write(self, frame, tracks):
+    def write(self, frame, tracks, cam2world):
 
         # log_manager:
         time_sec = datetime.strptime(str(datetime.now()), '%Y-%m-%d %H:%M:%S.%f').timestamp()
         if len(tracks) == 0:
-            msg = "{},{},{},{},{},{},{},{},{},{},{},{}".format(time_sec, frame, None, None, None, None, None, None, None, None, None, None)
+            msg = "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}".format(time_sec, frame, None, None, None, None, None, None, None, None, None, None, None, None, None)
             self.logger.info(msg)
 
         else:
+            # logline looks like this:
+            # timesec, frame, track_id, cls_id, conf, bbox_xmin, bbox_ymin, bbox_xmax, bbox_ymax, utm_E, utm_N, utm_alt, Vel_E, Vel_N, Vel_alt
             for track in tracks:
                 msg = "{},{},{},{},{},{},{}".format(time_sec, frame, track.track_id, int(track.cls_id), track.confidence,
-                                                    str(list(track.to_tlbr().astype(np.int)))[1:-1].replace(" ", ""),
-                                                    str(track.xyz_pos)[1:-1].replace(" ", ""))
+                                                    str(list(track.utm_to_bbox_tlbr(cam2world).squeeze().astype(np.int)))[1:-1].replace(" ", ""),
+                                                    str(list(track.mean.squeeze()))[1:-1].replace(" ", ""))
                 self.logger.info(msg)
 
         pass

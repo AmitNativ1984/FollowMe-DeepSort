@@ -1,3 +1,4 @@
+import os
 import cv2
 import time
 import argparse
@@ -6,11 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 from deep_sort.dataloaders.vehicle_sensors_dataloader import ProbotSensorsDataset
-from deep_sort.deep_sort import DeepSort
 from utils.draw import draw_boxes, create_radar_plot
 from utils.parser import get_config
-from utils.camera2world import Cam2World
-# from deepsort_core import DeepSort
 from yolov3_deepsort_headless import Tracker
 
 class DeepSortManager(object):
@@ -22,6 +20,18 @@ class DeepSortManager(object):
         self.frame = 0
 
         self.vdo = cv2.VideoCapture()
+
+    def __enter__(self):
+        assert os.path.isdir(self.args.data), "Error: path error"
+
+        self.im_width = 1280
+        self.im_height = 720
+
+        if self.args.save_path:
+            fourcc =  cv2.VideoWriter_fourcc(*'XVID')
+            self.writer = cv2.VideoWriter(self.args.save_path, fourcc, 20, (self.im_width,self.im_height))
+
+        return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
@@ -62,18 +72,18 @@ class DeepSortManager(object):
 
         for i, sample in enumerate(self.data_loader):
             start_time = time.time()
-            sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
+            telemetry = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
 
             ori_im = sample["image"].numpy().squeeze(0)
 
             ''' ************************************** '''
-            tracks, detections = self.tracker.run_tracking(ori_im)
+            tracks, detections = self.tracker.run_tracking(ori_im, telemetry)
             ''' ************************************** '''
 
             tracking_time = time.time()
 
             if self.args.display and args.debug_mode:
-                self.display(tracks, detections, sample, ori_im, ax_radar, ax_map)
+                self.display(tracks, detections, telemetry, ori_im, ax_radar, ax_map)
             end_time = time.time()
             print(
                 'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
@@ -81,21 +91,7 @@ class DeepSortManager(object):
                                 (end_time - tracking_time) * 1E3))
             self.frame += 1
 
-    def deepsort_core(self, img):
-        ''' *** THIS IS WHERE THE MAGIC HAPPENS *** '''
-        # do detection:
-        detections = self.DeepSort.detect(img)
-
-        # udpate detections with utm coordinates using cam2world
-        for detection in detections:
-            detection.update_positions_using_telemetry(self.cam2world)
-
-        # associate tracks with detections
-        tracks = self.DeepSort.track(detections, cam2world=self.cam2world)
-
-        return tracks, detections
-
-    def display(self, tracks, detections, sample, ori_im, ax_radar, ax_map):
+    def display(self, tracks, detections, telemetry, ori_im, ax_radar, ax_map):
         # draw boxes for visualization
         if len(detections) > 0:
             ax_radar.cla()
@@ -123,10 +119,10 @@ class DeepSortManager(object):
                 ax_radar.scatter(theta_deg, R, color='g', marker='x')
 
         if self.args.display and args.debug_mode:
-            ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
+            ax_map.scatter(telemetry["utmpos"][0], telemetry["utmpos"][1],
                            marker='o', color='b', alpha=0.5)
-            ax_map.axis(xmin=sample["telemetry"]["utmpos"][0]-30, xmax=sample["telemetry"]["utmpos"][0] + 30,
-                        ymin=sample["telemetry"]["utmpos"][1] - 30, ymax=sample["telemetry"]["utmpos"][1] + 30)
+            ax_map.axis(xmin=telemetry["utmpos"][0]-30, xmax=telemetry["utmpos"][0] + 30,
+                        ymin=telemetry["utmpos"][1] - 30, ymax=telemetry["utmpos"][1] + 30)
 
 
             confidence = []
@@ -145,7 +141,7 @@ class DeepSortManager(object):
                     bbox_tlbr.append(tlbr)
                     confidence.append(track.confidence)
                     track_id.append(track.track_id)
-                    cls_names.append(self.cls_dict[track.cls_id])
+                    cls_names.append(self.tracker.cls_dict[track.cls_id])
 
                 ax_map.scatter(track.mean[0], track.mean[1], marker='o',
                                color='r', s=5)

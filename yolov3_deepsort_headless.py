@@ -65,6 +65,6 @@ class Tracker:
         # associate tracks with detections
         tracks = self.deepsort.track(detections, cam2world=self.cam2world)
 
-        self.logger.write(self.frame, tracks)
+        self.logger.write(self.frame, tracks, self.cam2world)
 
         return tracks, detections
