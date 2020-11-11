@@ -37,9 +37,10 @@ class Tracker(object):
         if exc_type:
             print(exc_type, exc_value, exc_traceback)
 
-    def run(self):
-        U = np.array([[0], [0], [0], [0]])
+        if self.args.save_path:
+            self.writer.release()
 
+    def create_figures(self):
         # set figures and plots:
         fig3Dtracking = plt.figure(figsize=(10, 4))
         plt.get_current_fig_manager().window.wm_geometry("+0+0")
@@ -61,7 +62,14 @@ class Tracker(object):
 
         fig3Dtracking.suptitle('UTM Tracking')
         cv2.namedWindow('cam0', cv2.WINDOW_NORMAL)
+
+        return ax_map, ax_radar
+
+    def run(self):
+        U = np.array([[0], [0], [0], [0]])
+        ax_map, ax_radar = self.create_figures()
         plt.ion()
+
         for i, sample in enumerate(self.data_loader):
             start_time = time.time()
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
@@ -78,16 +86,12 @@ class Tracker(object):
 
             if self.args.display and args.debug_mode:
                 self.display(tracks, detections, sample, ori_im, ax_radar, ax_map)
-
             end_time = time.time()
             print(
                 'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
                     self.frame, (end_time - start_time) * 1E3, (tracking_time - start_time) * 1E3,
                                 (end_time - tracking_time) * 1E3))
             self.frame += 1
-
-            if self.args.save_path:
-                self.writer.release()
 
     def deepsort_core(self, img):
         ''' *** THIS IS WHERE THE MAGIC HAPPENS *** '''
