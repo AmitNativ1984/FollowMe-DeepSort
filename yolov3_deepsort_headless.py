@@ -49,8 +49,12 @@ class Tracker:
         self.logger = DeepSortLogger()
         self.frame = -1
 
-    def run_tracking(self, im):
+    def run_tracking(self, im, telemetry):
         self.frame += 1
+
+        # update cam2world functions with new telemetry:
+        self.cam2world.digest_new_telemetry(telemetry)
+
         # do detection:
         detections = self.deepsort.detect(im)
 

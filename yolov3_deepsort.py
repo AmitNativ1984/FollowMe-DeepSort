@@ -11,29 +11,17 @@ from utils.draw import draw_boxes, create_radar_plot
 from utils.parser import get_config
 from utils.camera2world import Cam2World
 # from deepsort_core import DeepSort
+from yolov3_deepsort_headless import Tracker
 
-class Tracker(object):
-    def __init__(self, cfg, args):
-        self.cfg = cfg
+class DeepSortManager(object):
+    def __init__(self, tracker, args):
         self.args = args
-        use_cuda = args.use_cuda and torch.cuda.is_available()
-        if not use_cuda:
-            raise UserWarning("Running in cpu mode!")
-
-        kwargs = {'batch_size': args.batch_size, 'pin_memory': True}
-        dataset = ProbotSensorsDataset(args)
-        self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
-        self.cam2world = Cam2World(args.img_width, args.img_height,
-                                   args.thetaX, args.target_height,
-                                   cam_yaw_pitch_roll=cfg.CAMERA_YAW_PITCH_ROLL,
-                                   cam_pos=cfg.CAMERA2IMU_DIST)
-
-        self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
-        self.vdo = cv2.VideoCapture()
-        self.bbox_xyxy = []
-        self.target_id = []
-        self.DeepSort = DeepSort(self.cfg, use_cuda=use_cuda)
+        self.tracker = tracker
+        self.dataset = ProbotSensorsDataset(self.args)
+        self.data_loader = torch.utils.data.DataLoader(self.dataset, batch_size=1, shuffle=False)
         self.frame = 0
+
+        self.vdo = cv2.VideoCapture()
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if exc_type:
@@ -76,12 +64,10 @@ class Tracker(object):
             start_time = time.time()
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
 
-            # update cam2world functions with new telemetry:
-            self.cam2world.digest_new_telemetry(sample["telemetry"])
             ori_im = sample["image"].numpy().squeeze(0)
 
             ''' ************************************** '''
-            tracks, detections = self.deepsort_core(ori_im)
+            tracks, detections = self.tracker.run_tracking(ori_im)
             ''' ************************************** '''
 
             tracking_time = time.time()
@@ -129,7 +115,7 @@ class Tracker(object):
                 ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
                                marker='+', color='g')
 
-                relxyz = self.cam2world.convert_bbox_tlbr_to_xyz_rel2cam(detection.to_tlbr())
+                relxyz = self.tracker.cam2world.convert_bbox_tlbr_to_xyz_rel2cam(detection.to_tlbr())
                 Rz = relxyz[1]
                 Rx = relxyz[0]
                 R = np.sqrt(Rz ** 2 + Rx ** 2)
@@ -151,10 +137,10 @@ class Tracker(object):
 
             for ind, track in enumerate(tracks):
                 utm_pos.append(track.mean)
-                r0, c0, h = self.cam2world.convert_utm_coordinates_to_bbox_center(track.mean[:3])
+                r0, c0, h = self.tracker.cam2world.convert_utm_coordinates_to_bbox_center(track.mean[:3])
                 # tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
                 #                   c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
-                tlbr = track.utm_to_bbox_tlbr(self.cam2world)
+                tlbr = track.utm_to_bbox_tlbr(self.tracker.cam2world)
                 if track.in_cam_FOV:
                     bbox_tlbr.append(tlbr)
                     confidence.append(track.confidence)
@@ -165,7 +151,7 @@ class Tracker(object):
                                color='r', s=5)
                 ax_map.annotate(str(track.track_id), xy=(track.mean[0], track.mean[1]), xycoords='data')
 
-                relxyz = self.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.mean[:3])
+                relxyz = self.tracker.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.mean[:3])
                 Rz = relxyz[1]
                 Rx = relxyz[0]
                 R = np.sqrt(Rz ** 2 + Rx ** 2)
@@ -236,8 +222,11 @@ if __name__=="__main__":
     torch.set_num_threads(cfg.NUM_CPU_CORES)
     print("Using {} CPU cores".format(torch.get_num_threads()))
 
-    tracker = Tracker(cfg, args)
-    plt.show()
-    tracker.run()
+    # creating tracker:
+    cls_dict = {0: 'person', 2: 'vehicle', 7: 'vehicle'}
+    safezone = [100, 100, 1000, 600]
+    tracker = Tracker(args.img_width, args.img_height, cls_dict, safezone,
+                      args.thetaX, args.target_height)
 
-
+    with DeepSortManager(tracker, args) as ds_tracker:
+        ds_tracker.run()
