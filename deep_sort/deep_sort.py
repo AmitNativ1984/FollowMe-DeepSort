@@ -20,7 +20,7 @@ class DeepSort(object):
         self.detector = build_detector(cfg, use_cuda=use_cuda)
         # self.tracker = build_tracker(cfg, use_cuda=use_cuda)
 
-        self.extractor = Extractor(cfg.DEEPSORT.PERSON_REID_CKPT, use_cuda=use_cuda)
+        self.person_extractor = Extractor(cfg.DEEPSORT.PERSON_REID_CKPT, use_cuda=use_cuda)
         self.vehicle_extractor = ExtractorVehicle(cfg.DEEPSORT.VEHICLE_REID_CKPT, use_cuda=use_cuda)
         max_cosine_distance = cfg.DEEPSORT.MAX_DIST
         metric = NearestNeighborDistanceMetric("cosine", max_cosine_distance, cfg.DEEPSORT.NN_BUDGET)
@@ -130,7 +130,7 @@ class DeepSort(object):
                 im_crops_vehicles.append(im)
 
         if im_crops:
-            person_features = self.extractor(im_crops)
+            person_features = self.person_extractor(im_crops)
             # making person and vechiles orthogonal for cosine similarity
             person_features = np.hstack((person_features, np.zeros_like(person_features)))
         else:

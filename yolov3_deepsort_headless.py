@@ -42,7 +42,7 @@ class Tracker:
         self.identities = []
         self.target_id = []
 
-    def DeepSort(self, im, target_cls):
+    def DeepSort(self, im):
         # do detection
         bbox_xywh, cls_conf, cls_ids = self.detector(im)    # get all detections from image
         tracks = []
