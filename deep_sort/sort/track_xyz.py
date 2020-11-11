@@ -134,7 +134,7 @@ class Track:
 
         return np.array([xmin,ymin, xmax,ymax])
 
-    def predict(self, time_stamp, cam2world):
+    def predict(self, cam2world):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
 
@@ -147,6 +147,7 @@ class Track:
             The Kalman filter.
 
         """
+        time_stamp = cam2world.telemetry["timestamp"][0]
         if self.time_since_update == 0:
             self.mean, self.covariance = self.kf_utm.predict(time_stamp)
         else:

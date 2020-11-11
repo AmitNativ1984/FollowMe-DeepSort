@@ -24,7 +24,9 @@ class Tracker(object):
         dataset = ProbotSensorsDataset(args)
         self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
         self.cam2world = Cam2World(args.img_width, args.img_height,
-                                   args.thetaX, args.target_height, cam_yaw_pitch_roll=cfg.CAMERA_YAW_PITCH_ROLL, cam_pos=cfg.CAMERA2IMU_DIST)
+                                   args.thetaX, args.target_height,
+                                   cam_yaw_pitch_roll=cfg.CAMERA_YAW_PITCH_ROLL,
+                                   cam_pos=cfg.CAMERA2IMU_DIST)
 
         self.cls_dict = {0: 'person', 2: 'car', 7: 'car'}
         self.vdo = cv2.VideoCapture()
@@ -103,7 +105,7 @@ class Tracker(object):
             detection.update_positions_using_telemetry(self.cam2world)
 
         # associate tracks with detections
-        tracks = self.DeepSort.track(detections, timestamp=self.cam2world.telemetry["timestamp"][0], cam2world=self.cam2world)
+        tracks = self.DeepSort.track(detections, cam2world=self.cam2world)
 
         return tracks, detections
 
