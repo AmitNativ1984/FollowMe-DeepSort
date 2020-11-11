@@ -1,16 +1,10 @@
-import os
 import cv2
 import time
 import argparse
 import torch
 import numpy as np
-from distutils.util import strtobool
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from matplotlib.patches import Ellipse
-import ctypes
-from ctypes import POINTER, c_uint8, cast
-
 from deep_sort.dataloaders.vehicle_sensors_dataloader import ProbotSensorsDataset
 from deep_sort.deep_sort import DeepSort
 from utils.draw import draw_boxes, create_radar_plot
@@ -29,7 +23,6 @@ class Tracker(object):
         kwargs = {'batch_size': args.batch_size, 'pin_memory': True}
         dataset = ProbotSensorsDataset(args)
         self.data_loader = torch.utils.data.DataLoader(dataset, **kwargs, shuffle=False)
-        # self.data_loader = iter(self.data_loader)
         self.cam2world = Cam2World(args.img_width, args.img_height,
                                    args.thetaX, args.target_height, cam_yaw_pitch_roll=cfg.CAMERA_YAW_PITCH_ROLL, cam_pos=cfg.CAMERA2IMU_DIST)
 
@@ -45,8 +38,6 @@ class Tracker(object):
             print(exc_type, exc_value, exc_traceback)
 
     def run(self):
-        VISUALIZE_DETECTIONS = True
-        new_traget_raw = True
         U = np.array([[0], [0], [0], [0]])
 
         # set figures and plots:
@@ -58,9 +49,7 @@ class Tracker(object):
         ax_map = fig3Dtracking.add_subplot(1, 2, 1)
         ax_map.set_title("UTM")
         ax_map.set_aspect('equal', 'box')
-        # ax_map.set_aspect('equal', 'box')
         ax_map.grid(True)
-
 
         # vehicle radar
         ax_radar = fig3Dtracking.add_subplot(1, 2, 2, projection='polar')
@@ -71,18 +60,12 @@ class Tracker(object):
         ax_radar.set_rlim(bottom=0, top=30)
 
         fig3Dtracking.suptitle('UTM Tracking')
-
-        # def ani_init():
-        #     """ init annimation """
-        #     ax_map.scatter([], [])
-        #     ax_radar.scatter([], [])
-        #     return ax_map, ax_radar
         cv2.namedWindow('cam0', cv2.WINDOW_NORMAL)
         plt.ion()
         for i, sample in enumerate(self.data_loader):
-            # sample = next(self.data_loader)
             start_time = time.time()
             sample["telemetry"] = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
+
             # update cam2world functions with new telemetry:
             self.cam2world.digest_new_telemetry(sample["telemetry"])
             ori_im = sample["image"].numpy().squeeze(0)
@@ -93,112 +76,18 @@ class Tracker(object):
 
             tracking_time = time.time()
 
-            # draw boxes for visualization
-            if len(detections) > 0 and args.debug_mode and args.display:
-                ax_radar.cla()
-                ax_radar.set_theta_direction(-1)
-                # # ax_radar.set_rlabel_position(90)
-                ax_radar.set_rlim(bottom=0, top=30)
-                ax_radar.set_theta_zero_location(
-                    "N")  # , offset=+np.rad2deg(sample["telemetry"]["yaw_pitch_roll"][0][0]))
-                # ax_radar.set_aspect('equal', 'box')
-
-                ori_im = draw_boxes(ori_im,
-                                    [detection.to_tlbr() for detection in detections],
-                                    clr=[255, 255, 0])
-
-                ax_map.cla()
-                ax_map.grid(True)
-                ax_map.set_title("UTM")
-                for detection in detections:
-                    ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
-                                   marker='+', color='g')
-
-                    relxyz = self.cam2world.convert_bbox_tlbr_to_xyz_rel2cam(detection.to_tlbr())
-                    Rz = relxyz[1]
-                    Rx = relxyz[0]
-                    R = np.sqrt(Rz ** 2 + Rx ** 2)
-                    theta_deg = np.arctan2(Rx, Rz)
-                    ax_radar.scatter(theta_deg, R, color='g', marker='x')
-
             if self.args.display and args.debug_mode:
-                ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
-                               marker='o', color='b', alpha=0.5)
-                ax_map.axis(xmin=sample["telemetry"]["utmpos"][0]-30, xmax=sample["telemetry"]["utmpos"][0] + 30,
-                            ymin=sample["telemetry"]["utmpos"][1] - 30, ymax=sample["telemetry"]["utmpos"][1] + 30)
+                self.display(tracks, detections, sample, ori_im, ax_radar, ax_map)
 
-
-                confidence = []
-                track_id = []
-                cls_names = []
-                utm_pos = []
-                bbox_tlbr = []
-
-                for ind, track in enumerate(tracks):
-                    utm_pos.append(track.mean)
-                    r0, c0, h = self.cam2world.convert_utm_coordinates_to_bbox_center(track.mean[:3])
-                    # tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
-                    #                   c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
-                    tlbr = track.utm_to_bbox_tlbr(self.cam2world)
-                    if track.in_cam_FOV:
-                        bbox_tlbr.append(tlbr)
-                        confidence.append(track.confidence)
-                        track_id.append(track.track_id)
-                        cls_names.append(self.cls_dict[track.cls_id])
-
-                    ax_map.scatter(track.mean[0], track.mean[1], marker='o',
-                                   color='r', s=5)
-                    ax_map.annotate(str(track.track_id), xy=(track.mean[0], track.mean[1]), xycoords='data')
-
-                    relxyz = self.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.mean[:3])
-                    Rz = relxyz[1]
-                    Rx = relxyz[0]
-                    R = np.sqrt(Rz ** 2 + Rx ** 2)
-                    theta_deg = np.arctan2(Rx, Rz)
-                    ax_radar.scatter(theta_deg, R, color='r', alpha=0.5)# + sample["telemetry"]["yaw_pitch_roll"][0][0], R)
-                    ax_radar.annotate(str(track.track_id), xy=(theta_deg, R), xycoords='data')
-
-                    lambda1, lambda2 = track.cov_eigenvalues
-                    mue1, mue2 = track.cov_eigenvectors
-                    chi2inv95dim2 = 5.9915
-                    r1 = np.sqrt(chi2inv95dim2 * lambda1)
-                    r2 = np.sqrt(chi2inv95dim2 * lambda2)
-                    angle = np.arctan2(mue1[1], mue1[0]) * 180 / np.pi
-
-                    ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None, fill=False)
-                    ax_radar.add_artist(ellipse)
-
-                    ellipse = Ellipse((track.mean[0], track.mean[1]), r1*2, r2*2, angle=angle, color="red", facecolor=None, fill=False)
-                    ax_map.add_artist(ellipse)
-
-                ori_im = draw_boxes(ori_im,
-                                    bbox_tlbr,
-                                    confs=confidence,
-                                    target_id=track_id,
-                                    target_xyz=utm_pos,
-                                    cls_names=cls_names,
-                                    clr=[255, 0, 0])
-
-
-
-
-            cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
-            cv2.resizeWindow('cam0', int(1280/2), int(720/2))
-            cv2.waitKey(1)
-            plt.draw()
-            plt.pause(0.001)
             end_time = time.time()
             print(
                 'frame: {}, total time: {:.3f}[msec], tracking time: {:.3f}[msec], visualize time: {:.3f}[msec]'.format(
                     self.frame, (end_time - start_time) * 1E3, (tracking_time - start_time) * 1E3,
-                    (end_time - tracking_time) * 1E3))
+                                (end_time - tracking_time) * 1E3))
             self.frame += 1
 
-
-        if self.args.save_path:
-            self.writer.release()
-
-            # return ax_map, ax_radar
+            if self.args.save_path:
+                self.writer.release()
 
     def deepsort_core(self, img):
         ''' *** THIS IS WHERE THE MAGIC HAPPENS *** '''
@@ -213,6 +102,98 @@ class Tracker(object):
         tracks = self.DeepSort.track(detections, timestamp=self.cam2world.telemetry["timestamp"][0], cam2world=self.cam2world)
 
         return tracks, detections
+
+    def display(self, tracks, detections, sample, ori_im, ax_radar, ax_map):
+        # draw boxes for visualization
+        if len(detections) > 0:
+            ax_radar.cla()
+            ax_radar.set_theta_direction(-1)
+            ax_radar.set_rlim(bottom=0, top=30)
+            ax_radar.set_theta_zero_location(
+                "N")
+
+            ori_im = draw_boxes(ori_im,
+                                [detection.to_tlbr() for detection in detections],
+                                clr=[255, 255, 0])
+
+            ax_map.cla()
+            ax_map.grid(True)
+            ax_map.set_title("UTM")
+            for detection in detections:
+                ax_map.scatter(detection.utm_pos[0], detection.utm_pos[1],
+                               marker='+', color='g')
+
+                relxyz = self.cam2world.convert_bbox_tlbr_to_xyz_rel2cam(detection.to_tlbr())
+                Rz = relxyz[1]
+                Rx = relxyz[0]
+                R = np.sqrt(Rz ** 2 + Rx ** 2)
+                theta_deg = np.arctan2(Rx, Rz)
+                ax_radar.scatter(theta_deg, R, color='g', marker='x')
+
+        if self.args.display and args.debug_mode:
+            ax_map.scatter(sample["telemetry"]["utmpos"][0], sample["telemetry"]["utmpos"][1],
+                           marker='o', color='b', alpha=0.5)
+            ax_map.axis(xmin=sample["telemetry"]["utmpos"][0]-30, xmax=sample["telemetry"]["utmpos"][0] + 30,
+                        ymin=sample["telemetry"]["utmpos"][1] - 30, ymax=sample["telemetry"]["utmpos"][1] + 30)
+
+
+            confidence = []
+            track_id = []
+            cls_names = []
+            utm_pos = []
+            bbox_tlbr = []
+
+            for ind, track in enumerate(tracks):
+                utm_pos.append(track.mean)
+                r0, c0, h = self.cam2world.convert_utm_coordinates_to_bbox_center(track.mean[:3])
+                # tlbr = np.array([c0[0] - track.bbox_width/2, r0[0] - track.bbox_height/2,
+                #                   c0[0] + track.bbox_width/2 + 1, r0[0] + track.bbox_height/2 + 1])
+                tlbr = track.utm_to_bbox_tlbr(self.cam2world)
+                if track.in_cam_FOV:
+                    bbox_tlbr.append(tlbr)
+                    confidence.append(track.confidence)
+                    track_id.append(track.track_id)
+                    cls_names.append(self.cls_dict[track.cls_id])
+
+                ax_map.scatter(track.mean[0], track.mean[1], marker='o',
+                               color='r', s=5)
+                ax_map.annotate(str(track.track_id), xy=(track.mean[0], track.mean[1]), xycoords='data')
+
+                relxyz = self.cam2world.convert_utm_coordinates_to_xyz_rel2cam(track.mean[:3])
+                Rz = relxyz[1]
+                Rx = relxyz[0]
+                R = np.sqrt(Rz ** 2 + Rx ** 2)
+                theta_deg = np.arctan2(Rx, Rz)
+                ax_radar.scatter(theta_deg, R, color='r', alpha=0.5)# + sample["telemetry"]["yaw_pitch_roll"][0][0], R)
+                ax_radar.annotate(str(track.track_id), xy=(theta_deg, R), xycoords='data')
+
+                lambda1, lambda2 = track.cov_eigenvalues
+                mue1, mue2 = track.cov_eigenvectors
+                chi2inv95dim2 = 5.9915
+                r1 = np.sqrt(chi2inv95dim2 * lambda1)
+                r2 = np.sqrt(chi2inv95dim2 * lambda2)
+                angle = np.arctan2(mue1[1], mue1[0]) * 180 / np.pi
+
+                ellipse = Ellipse((Rx, Rz), r1, r2, angle=angle, transform=ax_radar.transData._b, color="blue", facecolor=None, fill=False)
+                ax_radar.add_artist(ellipse)
+
+                ellipse = Ellipse((track.mean[0], track.mean[1]), r1*2, r2*2, angle=angle, color="red", facecolor=None, fill=False)
+                ax_map.add_artist(ellipse)
+
+            ori_im = draw_boxes(ori_im,
+                                bbox_tlbr,
+                                confs=confidence,
+                                target_id=track_id,
+                                target_xyz=utm_pos,
+                                cls_names=cls_names,
+                                clr=[255, 0, 0])
+
+        cv2.imshow("cam0", cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB))
+        cv2.resizeWindow('cam0', int(1280/2), int(720/2))
+        cv2.waitKey(1)
+        plt.draw()
+        plt.pause(0.001)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
