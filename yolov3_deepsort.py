@@ -78,7 +78,7 @@ class DeepSortManager(object):
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             ''' ************************************** '''
-            tracks, detections = self.tracker.run_tracking(im, telemetry, debug_mode=True)
+            tracks, detections = self.tracker.run_tracking(im, telemetry, debug_mode=args.display_old_tracks)
             ''' ************************************** '''
 
             tracking_time = time.time()
@@ -204,6 +204,7 @@ def parse_args():
     parser.add_argument("--target-height", type=float, default=1.8,
                         help='tracked target height in [meters]')
     parser.add_argument("--debug-mode", action="store_true", default=False)
+    parser.add_argument("--display-old-tracks", action="store_true", default=False)
 
     return parser.parse_args()
 
