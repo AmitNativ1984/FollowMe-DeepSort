@@ -4,17 +4,12 @@ import numpy as np
 from . import kalman_filter
 from .kalman_filter_xyz import KalmanXYZ
 
-UTM_TRACKING = True
 from . import iou_matching
 from . import linear_assignment
 from . import utm_iou_matching as utm_dist_matching
 from . import utm_linear_assignment
 
-if UTM_TRACKING:
-    from .track_xyz import Track
-else:
-    from .track import Track
-
+from .track_xyz import Track
 
 class Tracker:
     """
@@ -62,10 +57,7 @@ class Tracker:
         This function should be called once every time step, before `update`.
         """
         for track in self.tracks:
-            if UTM_TRACKING:
-                track.predict(cam2world)
-            else:
-                track.predict(self.kf)
+            track.predict(cam2world)
 
     def update(self, detections, cam2world=None):
         """Perform measurement update and track management.
@@ -82,10 +74,7 @@ class Tracker:
 
         # Update track set.
         for track_idx, detection_idx in matches:    # update tracks with matched detections
-            if UTM_TRACKING:
-                self.tracks[track_idx].update(detections[detection_idx])
-            else:
-                self.tracks[track_idx].update(self.kf, detections[detection_idx])
+            self.tracks[track_idx].update(detections[detection_idx])
         for track_idx in unmatched_tracks:          # update as track with no detections. add +1 to missed frames. delete if necessary
             self.tracks[track_idx].mark_missed()
         for detection_idx in unmatched_detections:  # if detections are not associated with any track, initiate track and start counting frames
@@ -112,14 +101,11 @@ class Tracker:
             cost_matrix = self.metric.distance(features, targets)
             # gating the cost matrix based on mahalanobis distance of track. this happens after every matching based on
             # features
-            if UTM_TRACKING:
-                cost_matrix = utm_linear_assignment.gate_cost_matrix(
-                    cost_matrix, tracks, dets, track_indices,
-                    detection_indices)
-            else:
-                cost_matrix = linear_assignment.gate_cost_matrix(
-                    self.kf, cost_matrix, tracks, dets, track_indices,
-                    detection_indices)
+            cost_matrix = utm_linear_assignment.gate_cost_matrix(cost_matrix,
+                                                                 tracks,
+                                                                 dets,
+                                                                 track_indices,
+                                                                 detection_indices)
 
             return cost_matrix
 
@@ -131,16 +117,10 @@ class Tracker:
 
         # Associate CONFIRMED tracks with new detections by matching cascade.
         # result is matched/unmatched tracks and unmatched detections
-        if UTM_TRACKING:
-            matches_a, unmatched_tracks_a, unmatched_detections = \
-                utm_linear_assignment.matching_cascade(
-                    gated_metric, self.metric.matching_threshold, self.max_age,
-                    self.tracks, detections, confirmed_tracks)
-        else:
-            matches_a, unmatched_tracks_a, unmatched_detections = \
-                linear_assignment.matching_cascade(
-                    gated_metric, self.metric.matching_threshold, self.max_age,
-                    self.tracks, detections, confirmed_tracks)
+        matches_a, unmatched_tracks_a, unmatched_detections = \
+            utm_linear_assignment.matching_cascade(
+                gated_metric, self.metric.matching_threshold, self.max_age,
+                self.tracks, detections, confirmed_tracks)
 
         # Associate already known tentative tracks with unmatched tracks as for iou test
         iou_track_candidates = unconfirmed_tracks + [
@@ -150,34 +130,23 @@ class Tracker:
             k for k in unmatched_tracks_a if
             self.tracks[k].time_since_update != 1]
 
-        # Associate unmatched tracks and unmatched detections using IoU
-        if False:
-            matches_b, unmatched_tracks_b, unmatched_detections = \
-                utm_linear_assignment.min_cost_matching(
-                    utm_dist_matching.iou_cost, self.max_iou_distance, self.tracks,
-                    detections, iou_track_candidates, unmatched_detections)
-        else:
-            matches_b, unmatched_tracks_b, unmatched_detections = \
-                linear_assignment.min_cost_matching(
-                    iou_matching.iou_cost, self.max_iou_distance, self.tracks,
-                    detections, iou_track_candidates, unmatched_detections, cam2world)
+        # Associate unmatched tracks and unmatched detections using IoU of bbox.
+        # Temporary - because utm position from bbox projection is noisy. Especially in long ranges
+        matches_b, unmatched_tracks_b, unmatched_detections = \
+            linear_assignment.min_cost_matching(
+                iou_matching.iou_cost, self.max_iou_distance, self.tracks,
+                detections, iou_track_candidates, unmatched_detections, cam2world)
 
         matches = matches_a + matches_b
         unmatched_tracks = list(set(unmatched_tracks_a + unmatched_tracks_b))
         return matches, unmatched_tracks, unmatched_detections
 
     def _initiate_track(self, detection):
-        if UTM_TRACKING:
-            new_kf = KalmanXYZ(self.max_uncertainty_radius)
-            mean, covariance = new_kf.initiate(detection.timestamp, detection.utm_pos)
-            self.tracks.append(Track(
-                kf=new_kf, mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
-                detection=detection))
-        else:
-            mean, covariance = self.kf.initiate(detection.to_xyah())
 
-            self.tracks.append(Track(
-                mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
-                detection=detection))
+        new_kf = KalmanXYZ(self.max_uncertainty_radius)
+        mean, covariance = new_kf.initiate(detection.timestamp, detection.utm_pos)
+        self.tracks.append(Track(
+            kf=new_kf, mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,
+            detection=detection))
 
         self._next_id += 1
