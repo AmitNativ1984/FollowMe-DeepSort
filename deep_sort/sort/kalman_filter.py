@@ -59,6 +59,7 @@ class KalmanUTM(object):
             9: 16.919}
 
         self.max_uncertainty_radius = MAX_KF_UNCERTAINTY_RADIUS
+        self.maxEigenValue = self.max_uncertainty_radius ** 2 / self.chi2inv95[2]
 
         sigmaPosX = 1
         sigmaPosY = 1
@@ -67,7 +68,7 @@ class KalmanUTM(object):
         sigmaVelY = 10
         sigmaVelZ = 10
 
-        self.P = np.array([[sigmaPosX,      0.,        0.,          0.,        0.,         0.],
+        self.P0 = np.array([[sigmaPosX,      0.,        0.,          0.,        0.,         0.],
                            [0.,      sigmaPosY,        0.,          0.,        0.,         0.],
                            [0.,             0., sigmaPosZ,          0.,        0.,         0.],
                            [0.,             0.,        0.,   sigmaVelX,        0.,         0.],
@@ -90,8 +91,8 @@ class KalmanUTM(object):
     def initiate(self, timestamp, utm_pos0, vel0=np.array([[0], [0], [0]])):
         self.X_state_current = np.vstack((utm_pos0, 0, 0, 0))
         self.timestamp = timestamp
-
-        return self.X_state_current, self.P
+        self.P = self.P0
+        return self.X_state_current, self.P0
 
     def predict(self, new_timestamp, U=None):
         """
@@ -119,10 +120,10 @@ class KalmanUTM(object):
         # clip maximum uncertainty (otherwise it may blowup for all space)
         eigenvalues, eigenvectors = np.linalg.eig(self.P[:3, :3])
 
-        maxEigenValue = self.max_uncertainty_radius ** 2 / self.chi2inv95[2]
+
         for ind, eigenvalue in enumerate(eigenvalues):
-            if eigenvalue > maxEigenValue:
-                a0 = maxEigenValue / max(eigenvalues)
+            if eigenvalue > self.maxEigenValue:
+                a0 = self.maxEigenValue / eigenvalue
                 self.P[:, ind] = self.P[:, ind] * np.sqrt(a0)
                 self.P[ind, :] = self.P[ind, :] * np.sqrt(a0)
 
@@ -135,17 +136,24 @@ class KalmanUTM(object):
         :param currentMeas:
         :return:
         """
-        I = np.identity(self.P.shape[0])
-        z = currentMeas
+        # incase of long occlusion, with eignevalues at max, if there is a positive match (based on BBOX IoU):
+        # initiate kalman filter to get a tight position around the first detection
+        eigenvalues, eigenvectors = np.linalg.eig(self.P[:3, :3])
+        if max(eigenvalues) >= self.maxEigenValue:
+            self.X_state_current, self.P = self.initiate(self.timestamp, currentMeas)
 
-        z_pred = self.H @ self.X_state_current
-        y = z - z_pred
+        else:
+            I = np.identity(self.P.shape[0])
+            z = currentMeas
 
-        S = self.H @ self.P @ self.H.transpose() + self.R
-        K = self.P @ self.H.transpose() @ np.linalg.inv(S)
+            z_pred = self.H @ self.X_state_current
+            y = z - z_pred
 
-        self.X_state_current = self.X_state_current + (K @ y)
-        self.P = (I - K @ self.H) @ self.P
+            S = self.H @ self.P @ self.H.transpose() + self.R
+            K = self.P @ self.H.transpose() @ np.linalg.inv(S)
+
+            self.X_state_current = self.X_state_current + (K @ y)
+            self.P = (I - K @ self.H) @ self.P
 
         return self.X_state_current, self.P
 
