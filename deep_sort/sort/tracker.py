@@ -5,8 +5,6 @@ from .kalman_filter import KalmanUTM
 
 from . import iou_matching
 from . import linear_assignment
-from . import utm_linear_assignment
-
 from .track_xyz import Track
 
 class Tracker:
@@ -99,11 +97,11 @@ class Tracker:
             cost_matrix = self.metric.distance(features, targets)
             # gating the cost matrix based on mahalanobis distance of track. this happens after every matching based on
             # features
-            cost_matrix = utm_linear_assignment.gate_cost_matrix(cost_matrix,
-                                                                 tracks,
-                                                                 dets,
-                                                                 track_indices,
-                                                                 detection_indices)
+            cost_matrix = linear_assignment.gate_cost_matrix(cost_matrix,
+                                                             tracks,
+                                                             dets,
+                                                             track_indices,
+                                                             detection_indices)
 
             return cost_matrix
 
@@ -116,7 +114,7 @@ class Tracker:
         # Associate CONFIRMED tracks with new detections by matching cascade.
         # result is matched/unmatched tracks and unmatched detections
         matches_a, unmatched_tracks_a, unmatched_detections = \
-            utm_linear_assignment.matching_cascade(
+            linear_assignment.matching_cascade(
                 gated_metric, self.metric.matching_threshold, self.max_age,
                 self.tracks, detections, confirmed_tracks)
 

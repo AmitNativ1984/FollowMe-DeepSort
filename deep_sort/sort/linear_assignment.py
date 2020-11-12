@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import numpy as np
 # from sklearn.utils.linear_assignment_ import linear_assignment
 from scipy.optimize import linear_sum_assignment as linear_assignment
-from . import kalman_filter
+
 
 
 INFTY_COST = 1e+5
@@ -124,9 +124,10 @@ def matching_cascade(
     unmatched_detections = detection_indices
     matches = []
     for level in range(cascade_depth):  # comparing with prev frames (up to the num given as input param)
-        if len(unmatched_detections) == 0:  # No detections left
+        if len(unmatched_detections) == 0:  # No detections left or all detections have already been associated --> finish
             break
 
+        # collect all tracks that have not been updated in the past "level" frames
         track_indices_l = [
             k for k in track_indices
             if tracks[k].time_since_update == 1 + level
@@ -134,6 +135,7 @@ def matching_cascade(
         if len(track_indices_l) == 0:  # Nothing to match at this level
             continue
 
+        # run min cost matching based on Re-id on any left detections and previous tracks in current cascade depth
         matches_l, _, unmatched_detections = \
             min_cost_matching(
                 distance_metric, max_distance, tracks, detections,
@@ -144,14 +146,14 @@ def matching_cascade(
 
 
 def gate_cost_matrix(
-        kf, cost_matrix, tracks, detections, track_indices, detection_indices,
-        gated_cost=INFTY_COST, only_position=False):
+        cost_matrix, tracks, detections, track_indices, detection_indices,
+        gated_cost=INFTY_COST, only_position=True):
     """Invalidate infeasible entries in cost matrix based on the state
     distributions obtained by Kalman filtering.
 
     Parameters
     ----------
-    kf : The Kalman filter.
+    (*)kf : The Kalman filter.
     cost_matrix : ndarray
         The NxM dimensional cost matrix, where N is the number of track indices
         and M is the number of detection indices, such that entry (i, j) is the
@@ -181,12 +183,15 @@ def gate_cost_matrix(
 
     """
     gating_dim = 2 if only_position else 4
-    gating_threshold = kalman_filter.chi2inv95[gating_dim]
+    gating_threshold = tracks[0].kf_utm.chi2inv95[gating_dim]
     measurements = np.asarray(
-        [detections[i].to_xyah() for i in detection_indices])
+        [detections[i].utm_pos for i in detection_indices]).squeeze(-1).transpose()
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
-        gating_distance = kf.gating_distance(
+        # print(track.covariance)
+        squared_maha = track.kf_utm.gating_distance(
             track.mean, track.covariance, measurements, only_position)
-        cost_matrix[row, gating_distance > gating_threshold] = gated_cost
+        cost_matrix[row, squared_maha > gating_threshold] = gated_cost
+        metric_utm_dist = np.sqrt(np.sum((track.mean[:2] - measurements[:2])**2, axis=0))
+        # cost_matrix[row, metric_utm_dist > 1.5] = gated_cost
     return cost_matrix
