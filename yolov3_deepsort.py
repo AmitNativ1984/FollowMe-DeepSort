@@ -102,7 +102,8 @@ class DeepSortManager(object):
 
             ori_im = draw_boxes(ori_im,
                                 [detection.to_tlbr() for detection in detections],
-                                clr=[255, 255, 0])
+                                target_id=[detection.cls_id for detection in detections],
+                                clr=[50, 200, 0])
 
             ax_map.cla()
             ax_map.grid(True)
