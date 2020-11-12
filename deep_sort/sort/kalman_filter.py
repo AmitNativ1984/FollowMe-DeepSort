@@ -59,7 +59,9 @@ class KalmanUTM(object):
             9: 16.919}
 
         self.max_uncertainty_radius = MAX_KF_UNCERTAINTY_RADIUS
-        self.maxEigenValue = self.max_uncertainty_radius ** 2 / self.chi2inv95[2]
+        # self.chi2inv95[2] : Position_only=True (lat, long)
+        # self.chi2inv95[3] : Position_only=False (lat, long, height)
+        self.maxEigenValue = self.max_uncertainty_radius ** 2 / self.chi2inv95[3]
 
         sigmaPosX = 1
         sigmaPosY = 1
