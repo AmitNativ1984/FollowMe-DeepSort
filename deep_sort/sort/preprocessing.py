@@ -3,7 +3,7 @@ import numpy as np
 import cv2
 
 
-def non_max_suppression(boxes, max_bbox_overlap, scores=None):
+def non_max_suppression(boxes, max_bbox_overlap, scores=None, cls_ids=None, img_shape=(720, 1280, 3)):
     """Suppress overlapping detections.
 
     Original code from [1]_ has been adapted to include confidence score.
@@ -34,16 +34,19 @@ def non_max_suppression(boxes, max_bbox_overlap, scores=None):
         Returns indices of detections that have survived non-maxima suppression.
 
     """
+    height, width, channels = img_shape
+    shift = 0 * max(height, width)
     if len(boxes) == 0:
         return []
 
     boxes = boxes.astype(np.float)
     pick = []
 
-    x1 = boxes[:, 0]
+    # shifting bboxes according to cls_ids. this is to perform nms only on same cls detections
+    x1 = boxes[:, 0] + shift * cls_ids
     y1 = boxes[:, 1]
-    x2 = boxes[:, 2] + boxes[:, 0]
-    y2 = boxes[:, 3] + boxes[:, 1]
+    x2 = boxes[:, 2] + x1
+    y2 = boxes[:, 3] + y1
 
     area = (x2 - x1 + 1) * (y2 - y1 + 1)
     if scores is not None:

@@ -45,6 +45,9 @@ class DeepSort(object):
         confidences = cls_conf[0][mask]
         cls_ids = cls_ids[0][mask]
 
+        # all cls_ids representing the same cls, will get the same cls_id:
+        for i, cls_id in enumerate(cls_ids):
+            cls_ids[i] = np.min([k for k,v in self.cls_dict.items() if v == self.cls_dict[cls_id]])
 
         self.height, self.width = ori_img.shape[:2]
 
@@ -55,9 +58,20 @@ class DeepSort(object):
                       conf > self.min_confidence]
 
         # run on non-maximum supression
-        boxes = np.array([d.tlwh for d in detections])
-        scores = np.array([d.confidence for d in detections])
-        indices = non_max_suppression(boxes, self.nms_max_overlap, scores)
+        boxes = np.empty((0, 4))
+        confs = np.empty((0, 1))
+        cls_ids = np.empty((0, 1))
+
+        for d in detections:
+            boxes = np.vstack((boxes, np.array(d.tlwh)))
+            confs = np.vstack((confs, np.array([d.confidence])))
+            cls_ids = np.vstack((cls_ids, np.array([d.cls_id])))
+
+        confs = confs.squeeze(1)
+        cls_ids = cls_ids.squeeze(1)
+
+        # suppressing detections that are too close
+        indices = non_max_suppression(boxes.copy(), self.nms_max_overlap, scores=confs, cls_ids=cls_ids, img_shape=ori_img.shape)
         detections = [detections[i] for i in indices]
 
         return detections
