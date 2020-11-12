@@ -1,7 +1,7 @@
 # vim: expandtab:ts=4:sw=4
 from __future__ import absolute_import
 import numpy as np
-from .kalman_filter import KalmanXYZ
+from .kalman_filter import KalmanUTM
 
 from . import iou_matching
 from . import linear_assignment
@@ -141,7 +141,7 @@ class Tracker:
 
     def _initiate_track(self, detection):
 
-        new_kf = KalmanXYZ(self.max_uncertainty_radius)
+        new_kf = KalmanUTM(self.max_uncertainty_radius)
         mean, covariance = new_kf.initiate(detection.timestamp, detection.utm_pos)
         self.tracks.append(Track(
             kf=new_kf, mean=mean, covariance=covariance, track_id=self._next_id, n_init=self.n_init, max_age=self.max_age,

@@ -38,7 +38,7 @@ def computeFmatrix(deltaT):
 
     return F
 
-class KalmanXYZ(object):
+class KalmanUTM(object):
     """ kalman filter for linear measurements """
 
     def __init__(self, MAX_KF_UNCERTAINTY_RADIUS=7):
@@ -80,8 +80,8 @@ class KalmanXYZ(object):
                            [0.,     0.,      1.,      0.,       0.,     0.]])
 
         # image detection noise (in meters)
-        sensor_acc_X = 2
-        sensor_acc_Y = 2
+        sensor_acc_X = 5
+        sensor_acc_Y = 5
         sensor_acc_Z = 0.5
         self.R = np.array([[sensor_acc_X,        0.0,                0.0],
                            [0.0,        sensor_acc_Y,                0.0],
