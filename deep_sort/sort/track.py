@@ -1,4 +1,5 @@
 # vim: expandtab:ts=4:sw=4
+import numpy as np
 
 
 class TrackState:
@@ -63,7 +64,7 @@ class Track:
 
     """
 
-    def __init__(self, mean=None, covariance=None, track_id=None, n_init=None, max_age=None, detection=None):
+    def __init__(self, mean=None, covariance=None, track_id=None, n_init=None, max_age=None, detection=None, kf=None):
 
         self.mean = mean
         self.covariance = covariance
@@ -80,11 +81,16 @@ class Track:
         self._n_init = n_init
         self._max_age = max_age
         self.cls_id = detection.cls_id
-        self.utm_pos = detection.to_utm()
-        self.detection_conf = detection.confidence
-
-        self.xyz_pos = 0.0
-        self.detection_tlbr = []
+        self.covariance = detection.confidence
+        # self.utm_pos = detection.utm_pos
+        self.confidence = detection.confidence
+        self.kf_utm = kf    # kalman filter
+        self.bbox_width = detection.tlwh[2]
+        self.bbox_height = detection.tlwh[3]
+        self.detection_xyah = detection.to_xyah()
+        self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(covariance[:2, :2], dims=2)
+        self.xyz_rel2cam = detection.xyz_rel2cam
+        self.imu_utm = None
 
     def to_tlwh(self):
         """Get current position in bounding box format `(top left x, top left y,
@@ -115,19 +121,25 @@ class Track:
         ret[2:] = ret[:2] + ret[2:]
         return ret
 
-    def to_xyz(self, cam2world, obj_height_meters):
-        tlbr = self.to_tlbr()
-        self.xyz_pos = cam2world.obj_world_xyz(x1=tlbr[0],
-                                          y1=tlbr[1],
-                                          x2=tlbr[2],
-                                          y2=tlbr[3],
-                                          obj_height_meters=obj_height_meters)
+    def utm_to_bbox_tlbr(self, cam2world):
+        r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.mean[:3])
 
-        return self.xyz_pos
+        aspect_ratio = self.detection_xyah[-2]
+        width = height * aspect_ratio
 
-    def predict(self, kf):
+        xmin = c0 - width/2
+        ymin = r0 - height/2
+        xmax = c0 + width/2
+        ymax = r0 + height/2
+
+        return np.array([xmin,ymin, xmax,ymax])
+
+    def predict(self, cam2world):
         """Propagate the state distribution to the current time step using a
         Kalman filter prediction step.
+
+        The predicted position in predicted only if target was detected in prev frame. otherwise, target is occluded,
+        and only the uncertainty is progressed by another prediction step
 
         Parameters
         ----------
@@ -135,11 +147,20 @@ class Track:
             The Kalman filter.
 
         """
-        self.mean, self.covariance = kf.predict(self.mean, self.covariance)
+        time_stamp = cam2world.telemetry["timestamp"][0]
+        if self.time_since_update == 0:
+            self.mean, self.covariance = self.kf_utm.predict(time_stamp)
+        else:
+            _, self.covariance = self.kf_utm.predict(time_stamp)
         self.age += 1
         self.time_since_update += 1
 
-    def update(self, kf, detection):
+        self.in_cam_FOV = cam2world.is_utm_coordinates_in_cam_FOV(self.mean[:3])
+
+        # calculating gating area:
+        self.cov_eigenvalues, self.cov_eigenvectors = self.get_gated_area(self.covariance[:2, :2])
+
+    def update(self, detection, cam2world=None):
         """Perform Kalman filter measurement update step and update the feature
         cache.
 
@@ -151,11 +172,17 @@ class Track:
             The associated detection.
 
         """
-        self.mean, self.covariance = kf.update(
-            self.mean, self.covariance, detection.to_xyah())
+        self.mean, self.covariance = self.kf_utm.update_by_measurment(detection.utm_pos)
         self.features.append(detection.feature)
         self.confidence = detection.confidence
         self.cls_id = detection.cls_id
+        self.xyz_rel2cam = detection.xyz_rel2cam
+        self.detection_xyah = detection.to_xyah()
+        x0y0ah = detection.to_xyah()
+        # r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.utm_pos)
+        # # TODO: project bbox to image plane based on distance to cam
+        # # self.bbox_height = x0y0ah[-1]
+        # self.bbox_width = x0y0ah[-2] * self.bbox_height
 
         self.hits += 1
         self.time_since_update = 0
@@ -169,6 +196,8 @@ class Track:
             self.state = TrackState.Deleted
         elif self.time_since_update > self._max_age:
             self.state = TrackState.Deleted
+        else:
+            self.time_since_update += 1
 
     def is_tentative(self):
         """Returns True if this track is tentative (unconfirmed).
@@ -182,3 +211,19 @@ class Track:
     def is_deleted(self):
         """Returns True if this track is dead and should be deleted."""
         return self.state == TrackState.Deleted
+
+    @staticmethod
+    def get_gated_area(covarianceMat, dims=2):
+        """
+        calculate eigen vectors and eigen values and then multiply by eigenvalues by chi2inv95 of K dims
+        to get ellipsoid shape
+        Args:
+            covarianceMat:
+
+        Returns:
+
+        """
+        assert covarianceMat.shape == (dims, dims), "covariance shape != (2,2)"
+
+        eigenvalues, eigenvectors = np.linalg.eig(covarianceMat)
+        return eigenvalues, eigenvectors
