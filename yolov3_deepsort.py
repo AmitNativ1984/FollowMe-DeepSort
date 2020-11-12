@@ -22,7 +22,7 @@ class DeepSortManager(object):
         self.vdo = cv2.VideoCapture()
 
     def __enter__(self):
-        assert os.path.isdir(self.args.root_dir), "Error: path error"
+        assert os.path.isdir(self.args.data), "Error: path error"
 
         self.im_width = 1280
         self.im_height = 720
@@ -187,7 +187,7 @@ class DeepSortManager(object):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root-dir", type=str, default='')
+    parser.add_argument("--data", type=str, default='')
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--display", action="store_true", default=False)
     parser.add_argument("--display_width", type=int, default=800)
