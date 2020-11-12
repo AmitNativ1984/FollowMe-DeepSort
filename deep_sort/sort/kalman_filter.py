@@ -83,7 +83,7 @@ class KalmanUTM(object):
         # image detection noise (in meters)
         sensor_acc_X = 5
         sensor_acc_Y = 5
-        sensor_acc_Z = 0.5
+        sensor_acc_Z = 1
         self.R = np.array([[sensor_acc_X,        0.0,                0.0],
                            [0.0,        sensor_acc_Y,                0.0],
                            [0.0,                 0.0,       sensor_acc_Z]])
@@ -158,7 +158,7 @@ class KalmanUTM(object):
         return self.X_state_current, self.P
 
     def gating_distance(self, mean, covariance, measurements,
-                        only_position=False):
+                        only_position):
         """Compute gating distance between state distribution and measurements.
 
         A suitable distance threshold can be obtained from `chi2inv95`. If
@@ -187,11 +187,14 @@ class KalmanUTM(object):
             `measurements[i]`.
 
         """
-        # mean, covariance = self.project(mean, covariance)
-        # TODO: pull from master to get hankl
+
         if only_position:
-            mean, covariance = mean[:2], covariance[:2, :2]
-            measurements = measurements[:2, :]
+            gating_dim = 2
+        else:
+            gating_dim = 3
+
+        mean, covariance = mean[:gating_dim], covariance[:gating_dim, :gating_dim]
+        measurements = measurements[:gating_dim, :]
 
         cholesky_factor = np.linalg.cholesky(covariance)
         d = measurements - mean
