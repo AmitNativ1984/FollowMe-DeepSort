@@ -76,7 +76,7 @@ class DeepSort(object):
 
         return detections
 
-    def track(self, detections, cam2world):
+    def track(self, detections, cam2world, debug_mode=False):
 
         # update tracker
         self.tracker.predict(cam2world)  # predicting bbox position based on kf
@@ -85,7 +85,7 @@ class DeepSort(object):
         # output bbox identities
         output_tracks = []
         for track in self.tracker.tracks:
-            if not track.is_confirmed():# or track.time_since_update > 0:
+            if not track.is_confirmed() or (not debug_mode and track.time_since_update > 0):
                 continue
             output_tracks.append(track)
 
