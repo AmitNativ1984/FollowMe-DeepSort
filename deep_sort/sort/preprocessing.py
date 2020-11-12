@@ -35,7 +35,7 @@ def non_max_suppression(boxes, max_bbox_overlap, scores=None, cls_ids=None, img_
 
     """
     height, width, channels = img_shape
-    shift = 0 * max(height, width)
+    shift = 2 * max(height, width)
     if len(boxes) == 0:
         return []
 
