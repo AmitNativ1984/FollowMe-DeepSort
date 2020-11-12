@@ -22,7 +22,7 @@ class DeepSortManager(object):
         self.vdo = cv2.VideoCapture()
 
     def __enter__(self):
-        assert os.path.isdir(self.args.data), "Error: path error"
+        assert os.path.isdir(self.args.root_dir), "Error: path error"
 
         self.im_width = 1280
         self.im_height = 720
@@ -75,9 +75,10 @@ class DeepSortManager(object):
             telemetry = dict(zip(sample["telemetry"].keys(), [v.numpy() for v in sample["telemetry"].values()]))
 
             ori_im = sample["image"].numpy().squeeze(0)
+            im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             ''' ************************************** '''
-            tracks, detections = self.tracker.run_tracking(ori_im, telemetry)
+            tracks, detections = self.tracker.run_tracking(im, telemetry)
             ''' ************************************** '''
 
             tracking_time = time.time()
@@ -186,15 +187,12 @@ class DeepSortManager(object):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--video_path", type=str, default='')
-    parser.add_argument("--data", type=str, help='folder containing all recorded data')
-    parser.add_argument("--batch-size", type=int, default=1, help='folder containing all recorded data')
+    parser.add_argument("--root-dir", type=str, default='')
     parser.add_argument("--config_deepsort", type=str, default="./configs/deep_sort.yaml")
     parser.add_argument("--display", action="store_true", default=False)
-    parser.add_argument("--config_sensors", type=str, default="./configs/sensors.yaml")
     parser.add_argument("--display_width", type=int, default=800)
     parser.add_argument("--display_height", type=int, default=600)
-    parser.add_argument("--save_path", type=str, default="")#"./demo/demo.avi")
+    parser.add_argument("--save_path", type=str, default="./demo/demo.avi")
     parser.add_argument("--cpu", dest="use_cuda", action="store_false", default=True)
     parser.add_argument("--target_cls", type=str, default='0', help='coco dataset labels to track')
     parser.add_argument("--img-width", type=int, default=1280,

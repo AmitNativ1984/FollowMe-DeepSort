@@ -43,7 +43,6 @@ class Tracker:
         self.max_age = max_age
         self.n_init = n_init
         self.max_uncertainty_radius = max_uncertainty_radius
-        # self.kf = kalman_filter.KalmanFilter()
         self.tracks = []
         self._next_id = 1
 
@@ -64,6 +63,7 @@ class Tracker:
             A list of detections at the current time step.
 
         """
+
         # Run matching cascade. (hungarian algorithm)
         matches, unmatched_tracks, unmatched_detections = \
             self._match(detections, cam2world)
@@ -95,8 +95,6 @@ class Tracker:
             features = np.array([dets[i].feature for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
             cost_matrix = self.metric.distance(features, targets)
-            # gating the cost matrix based on mahalanobis distance of track. this happens after every matching based on
-            # features
             cost_matrix = linear_assignment.gate_cost_matrix(cost_matrix,
                                                              tracks,
                                                              dets,
@@ -111,23 +109,19 @@ class Tracker:
         unconfirmed_tracks = [
             i for i, t in enumerate(self.tracks) if not t.is_confirmed()]
 
-        # Associate CONFIRMED tracks with new detections by matching cascade.
-        # result is matched/unmatched tracks and unmatched detections
+        # Associate detections with known track based on deep features and rid
         matches_a, unmatched_tracks_a, unmatched_detections = \
             linear_assignment.matching_cascade(
                 gated_metric, self.metric.matching_threshold, self.max_age,
                 self.tracks, detections, confirmed_tracks)
 
-        # Associate already known tentative tracks with unmatched tracks as for iou test
+        # Associate remaining tracks together with unconfirmed tracks using IOU.
         iou_track_candidates = unconfirmed_tracks + [
             k for k in unmatched_tracks_a if
             self.tracks[k].time_since_update == 1]
         unmatched_tracks_a = [
             k for k in unmatched_tracks_a if
             self.tracks[k].time_since_update != 1]
-
-        # Associate unmatched tracks and unmatched detections using IoU of bbox.
-        # Temporary - because utm position from bbox projection is noisy. Especially in long ranges
         matches_b, unmatched_tracks_b, unmatched_detections = \
             linear_assignment.min_cost_matching(
                 iou_matching.iou_cost, self.max_iou_distance, self.tracks,

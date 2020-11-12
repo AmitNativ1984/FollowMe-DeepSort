@@ -178,11 +178,6 @@ class Track:
         self.cls_id = detection.cls_id
         self.xyz_rel2cam = detection.xyz_rel2cam
         self.detection_xyah = detection.to_xyah()
-        x0y0ah = detection.to_xyah()
-        # r0, c0, height = cam2world.convert_utm_coordinates_to_bbox_center(self.utm_pos)
-        # # TODO: project bbox to image plane based on distance to cam
-        # # self.bbox_height = x0y0ah[-1]
-        # self.bbox_width = x0y0ah[-2] * self.bbox_height
 
         self.hits += 1
         self.time_since_update = 0
@@ -196,8 +191,6 @@ class Track:
             self.state = TrackState.Deleted
         elif self.time_since_update > self._max_age:
             self.state = TrackState.Deleted
-        else:
-            self.time_since_update += 1
 
     def is_tentative(self):
         """Returns True if this track is tentative (unconfirmed).

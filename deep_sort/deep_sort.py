@@ -152,8 +152,8 @@ class DeepSort(object):
 
         if im_crops_vehicles:
             vehicle_features = self.vehicle_extractor(im_crops_vehicles)
-            # making person and vechiles orthogonal for cosine similarity
-            vehicle_features = np.hstack((vehicle_features, np.zeros_like(vehicle_features)))
+            # making person and vehicles orthogonal for cosine similarity
+            vehicle_features = np.hstack((np.zeros_like(vehicle_features), vehicle_features))
         else:
             vehicle_features = np.array([])
 

@@ -1,6 +1,7 @@
 # vim: expandtab:ts=4:sw=4
 from __future__ import absolute_import
 import numpy as np
+from . import linear_assignment
 
 
 def iou(bbox, candidates):
@@ -81,4 +82,6 @@ def iou_cost(tracks, detections, track_indices=None,
         bbox = np.array([xmin, ymin, xmax-xmin, ymax-ymin])
         candidates = np.asarray([detections[i].tlwh for i in detection_indices])
         cost_matrix[row, :] = 1. - iou(bbox, candidates)
+        detection_cls_ids = [detections[i].cls_id for i in detection_indices]
+        cost_matrix[row, detection_cls_ids != tracks[track_idx].cls_id] = linear_assignment.INFTY_COST
     return cost_matrix

@@ -124,10 +124,9 @@ def matching_cascade(
     unmatched_detections = detection_indices
     matches = []
     for level in range(cascade_depth):  # comparing with prev frames (up to the num given as input param)
-        if len(unmatched_detections) == 0:  # No detections left or all detections have already been associated --> finish
+        if len(unmatched_detections) == 0:  # No detections left
             break
 
-        # collect all tracks that have not been updated in the past "level" frames
         track_indices_l = [
             k for k in track_indices
             if tracks[k].time_since_update == 1 + level
@@ -135,12 +134,12 @@ def matching_cascade(
         if len(track_indices_l) == 0:  # Nothing to match at this level
             continue
 
-        # run min cost matching based on Re-id on any left detections and previous tracks in current cascade depth
         matches_l, _, unmatched_detections = \
             min_cost_matching(
                 distance_metric, max_distance, tracks, detections,
                 track_indices_l, unmatched_detections)
         matches += matches_l
+
     unmatched_tracks = list(set(track_indices) - set(k for k, _ in matches))
     return matches, unmatched_tracks, unmatched_detections
 
@@ -153,7 +152,7 @@ def gate_cost_matrix(
 
     Parameters
     ----------
-    (*)kf : The Kalman filter.
+    kf : The Kalman filter.
     cost_matrix : ndarray
         The NxM dimensional cost matrix, where N is the number of track indices
         and M is the number of detection indices, such that entry (i, j) is the
@@ -188,10 +187,7 @@ def gate_cost_matrix(
         [detections[i].utm_pos for i in detection_indices]).squeeze(-1).transpose()
     for row, track_idx in enumerate(track_indices):
         track = tracks[track_idx]
-        # print(track.covariance)
         squared_maha = track.kf_utm.gating_distance(
             track.mean, track.covariance, measurements, only_position)
         cost_matrix[row, squared_maha > gating_threshold] = gated_cost
-        metric_utm_dist = np.sqrt(np.sum((track.mean[:2] - measurements[:2])**2, axis=0))
-        # cost_matrix[row, metric_utm_dist > 1.5] = gated_cost
     return cost_matrix

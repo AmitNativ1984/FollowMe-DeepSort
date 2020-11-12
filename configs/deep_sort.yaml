@@ -11,6 +11,7 @@ DEEPSORT:
   NN_BUDGET: 300        # number of associated appearances descriptors on each track
 
 NUM_CPU_CORES: 4
+PERCEPTION_MODE: False
 
 CLS_DICT:
   '0': 'person'

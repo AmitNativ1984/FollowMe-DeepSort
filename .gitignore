@@ -4,6 +4,11 @@ build/
 *.egg-info
 .idea/
 /detector/yolov3_ultralytics/runs/
+/demo/
+/Logs/
+/.idea/
+/detector/yolov3_ultralytics/weights/
+/segmentor/pytorch_deeplab/weights/
 
 # Files
 *.weights
@@ -15,6 +20,3 @@ build/
 *.pt
 *.pth
 
-/.idea/
-/detector/yolov3_ultralytics/weights/
-/segmentor/pytorch_deeplab/weights/
