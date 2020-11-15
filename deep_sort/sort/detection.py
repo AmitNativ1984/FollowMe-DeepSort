@@ -36,12 +36,9 @@ class Detection(object):
         feature = np.asarray(feature, dtype=np.float32)
         self.feature = feature
         self.cls_id = cls_id
-        # todo: update cam2world
         self.utm_pos = []
         self.timestamp = []
         self.xyz_rel2cam = []
-        # self.utm_pos = self.to_utm()
-        # self.timestamp = camera2world.telemetry["timestamp"]
 
     def to_tlbr(self):
         """Convert bounding box to format `(min x, min y, max x, max y)`, i.e.,

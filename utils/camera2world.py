@@ -191,7 +191,6 @@ class Cam2World(object):
         return target_xyz
 
     def convert_xyz_rel2cam_to_bbox(self, target_xyz, org_bbox_tlwh):
-        # todo: add rows too!!!!
         row, col = self.project_xyz_in_local_camera_coordinates_to_pixels(target_xyz)
 
         return row, col

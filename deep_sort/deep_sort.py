@@ -117,9 +117,7 @@ class DeepSort(object):
 
     def _tlwh_to_xyxy(self, bbox_tlwh):
         """
-        TODO:
-            Convert bbox from xtl_ytl_w_h to xc_yc_w_h
-        Thanks JieChen91@github.com for reporting this bug!
+        convert (tlwh to xmin, ymin, xmax, ymax)
         """
         x,y,w,h = bbox_tlwh
         x1 = max(int(x),0)
