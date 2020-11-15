@@ -78,7 +78,7 @@ class DeepSortManager(object):
             im = cv2.cvtColor(ori_im, cv2.COLOR_BGR2RGB)
 
             ''' ************************************** '''
-            tracks, detections = self.tracker.run_tracking(im, telemetry, debug_mode=args.display_old_tracks)
+            tracks, detections = self.tracker.run_tracking(im, telemetry, DEBUG_MODE=args.display_old_tracks)
             ''' ************************************** '''
 
             tracking_time = time.time()

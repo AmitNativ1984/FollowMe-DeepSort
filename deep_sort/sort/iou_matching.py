@@ -70,6 +70,15 @@ def iou_cost(tracks, detections, track_indices=None,
         detection_indices = np.arange(len(detections))
 
     cost_matrix = np.zeros((len(track_indices), len(detection_indices)))
+
+    detections_tlwh = np.array(([], [], [], [])).transpose()
+    detections_cls_ids = []
+    detections_utm = np.array([[], [], []])
+    for det_ind in detection_indices:
+        detections_tlwh = np.vstack((detections_tlwh, detections[det_ind].tlwh))
+        detections_cls_ids.append(detections[det_ind].cls_id)
+        detections_utm = np.hstack((detections_utm, detections[det_ind].utm_pos))
+
     for row, track_idx in enumerate(track_indices):
         if tracks[track_idx].time_since_update > 20 or not tracks[track_idx].in_cam_FOV:
             cost_matrix[row, :] = linear_assignment.INFTY_COST
@@ -80,8 +89,17 @@ def iou_cost(tracks, detections, track_indices=None,
                          c0[0] + tracks[track_idx].bbox_width / 2 + 1, r0[0] + tracks[track_idx].bbox_height / 2 + 1])
 
         bbox = np.array([xmin, ymin, xmax-xmin, ymax-ymin])
-        candidates = np.asarray([detections[i].tlwh for i in detection_indices])
-        cost_matrix[row, :] = 1. - iou(bbox, candidates)
-        detection_cls_ids = [detections[i].cls_id for i in detection_indices]
-        cost_matrix[row, detection_cls_ids != tracks[track_idx].cls_id] = linear_assignment.INFTY_COST
+
+        cost_matrix[row, :] = 1. - iou(bbox, detections_tlwh)
+
+        # verify iou matches only on same class
+        cost_matrix[row, detections_cls_ids != tracks[track_idx].cls_id] = linear_assignment.INFTY_COST
+
+    # handle partial occlusions: verify iou matches only inside area of confusion (only for confirmed tracks)
+    if tracks[track_idx].is_confirmed:
+        cost_matrix = linear_assignment.gate_cost_matrix(cost_matrix, tracks, detections,
+                                                         track_indices, detection_indices,
+                                                         gated_cost=linear_assignment.INFTY_COST,
+                                                         only_position=True)
+
     return cost_matrix
